@@ -283,3 +283,36 @@ def test_eurostat_provider_raises_on_bad_response(monkeypatch: pytest.MonkeyPatc
         provider = EurostatProvider()
         with pytest.raises(ProviderError):
             provider.fetch("HICP_FR", date(2023, 1, 1), date(2023, 12, 31))
+
+
+def test_bdf_provider_raises_on_unknown_series() -> None:
+    """BDFProvider.fetch raises ProviderError with informative message for unknown series."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.bdf import BDFProvider
+
+    provider = BDFProvider()
+    with pytest.raises(ProviderError, match="Unknown BdF series"):
+        provider.fetch("UNKNOWN_SERIES", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_bdf_provider_raises_on_404(monkeypatch: pytest.MonkeyPatch) -> None:
+    """BDFProvider.fetch raises ProviderError on HTTP 404, mentioning the endpoint."""
+    import responses as rsps_lib
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.bdf import BDFProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    bdf_endpoint = (
+        "https://webstat.banque-france.fr/api/explore/v2.1/catalog/datasets"
+        "/fm_vm_vm_fr_b2_vm_iuzta_hpe_fr0000131104_e/exports/json"
+    )
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, bdf_endpoint, status=404)
+        provider = BDFProvider()
+        with pytest.raises(ProviderError, match="endpoint"):
+            provider.fetch("OAT_10Y_FR", date(2024, 1, 1), date(2024, 12, 31))
