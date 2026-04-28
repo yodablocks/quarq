@@ -16,6 +16,36 @@ Your portfolio data never leaves your machine.
 
 Work in progress. v0.1.0 coming soon.
 
+### What works now
+
+```python
+from datetime import date
+from quarq.ingest.equity import EquityProvider
+from quarq.ingest.fred import get_risk_free_rate
+from quarq.ingest.ecb import get_ecb_rate
+from quarq.ingest import get_provider
+from quarq.config import load_config
+
+# Live equity prices (.PA tickers, ^FCHI benchmark)
+p = EquityProvider()
+df = p.fetch("MC.PA", date(2025, 1, 1), date(2025, 12, 31))
+
+# Risk-free rate (FRED OAT10Y, falls back to config if no key)
+cfg = load_config()
+rfr = get_risk_free_rate(cfg)  # e.g. 0.032
+
+# ECB policy rate (no key required)
+ecb = get_ecb_rate(cfg)  # e.g. 0.045
+
+# Provider registry
+equity = get_provider("equity")   # EquityProvider
+fred   = get_provider("fred")     # FREDProvider
+ecb_p  = get_provider("ecb")      # ECBProvider
+oecd   = get_provider("oecd")     # OECDProvider
+```
+
+Set `FRED_API_KEY` in `~/.quarq/config.toml` for live macro rates. All other providers work without a key.
+
 ## Stack
 
 - Data: yfinance, FRED, ECB SDW, OECD (direct REST, no framework dependency)
