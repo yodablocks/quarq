@@ -45,6 +45,7 @@ htmlcov/
 CLAUDE.local.md
 ~/.quarq/
 *.quarq.log
+docs/
 
 # Playwright
 playwright/.auth/
