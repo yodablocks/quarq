@@ -197,3 +197,21 @@ def test_oecd_provider_raises_on_unknown_series() -> None:
     provider = OECDProvider()
     with pytest.raises(ProviderError, match="Unknown OECD series"):
         provider.fetch("UNKNOWN_SERIES", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_provider_registry_get_provider() -> None:
+    """get_provider returns correct instances; unknown name raises ProviderError."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import PROVIDER_REGISTRY, get_provider
+    from quarq.ingest.equity import EquityProvider
+
+    assert "equity" in PROVIDER_REGISTRY
+    assert "fred" in PROVIDER_REGISTRY
+    assert "ecb" in PROVIDER_REGISTRY
+    assert "oecd" in PROVIDER_REGISTRY
+
+    provider = get_provider("equity")
+    assert isinstance(provider, EquityProvider)
+
+    with pytest.raises(ProviderError, match="Unknown provider"):
+        get_provider("unknown")
