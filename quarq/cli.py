@@ -312,6 +312,26 @@ def _cmd_rag_add(path_str: str) -> None:
     )
 
 
+def _cmd_serve(host: str, port: int, reload: bool) -> None:
+    """Start the quarq FastAPI server with uvicorn.
+
+    Args:
+        host: Bind address (default 127.0.0.1).
+        port: TCP port (default 8000).
+        reload: Enable auto-reload for development.
+    """
+    import uvicorn
+
+    panel_content = (
+        f"[bold white]quarq API server starting[/bold white]\n"
+        f"http://{host}:{port}\n"
+        f"Docs: http://{host}:{port}/docs\n"
+        f"[dim]Press Ctrl+C to stop[/dim]"
+    )
+    console.print(Panel(panel_content, title="quarq serve", border_style="cyan"))
+    uvicorn.run("quarq.api.app:app", host=host, port=port, reload=reload)
+
+
 def main() -> None:
     """Entry point for the quarq CLI."""
     parser = argparse.ArgumentParser(
@@ -336,6 +356,12 @@ def main() -> None:
     rag_add_parser = rag_sub.add_parser("add", help="Index a file or folder")
     rag_add_parser.add_argument("path", help="Path to a PDF file or folder")
 
+    # quarq serve
+    serve_parser = subparsers.add_parser("serve", help="Start the FastAPI REST API server")
+    serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
+    serve_parser.add_argument("--port", type=int, default=8000, help="TCP port")
+    serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
+
     args = parser.parse_args()
 
     try:
@@ -352,6 +378,8 @@ def main() -> None:
                 _cmd_rag_add(args.path)
             else:
                 rag_parser.print_help()
+        elif args.command == "serve":
+            _cmd_serve(args.host, args.port, args.reload)
         else:
             _launch_loop()
     except KeyboardInterrupt:
