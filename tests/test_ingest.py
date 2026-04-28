@@ -117,3 +117,73 @@ def test_fred_get_risk_free_rate_fallback() -> None:
 
     rate = get_risk_free_rate(cfg)
     assert rate == 0.03
+
+
+def test_ecb_provider_parses_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ECBProvider.fetch parses a minimal valid ECB SDW JSON response."""
+    import responses as rsps_lib
+
+    from quarq.ingest import cache
+    from quarq.ingest.ecb import ECBProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    ecb_url = "https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.MRR_FR.LEV"
+    mock_body = {
+        "dataSets": [
+            {
+                "series": {
+                    "0:0:0:0:0:0:0": {
+                        "observations": {
+                            "0": [4.5],
+                            "1": [4.25],
+                        }
+                    }
+                }
+            }
+        ],
+        "structure": {
+            "dimensions": {
+                "observation": [
+                    {
+                        "values": [
+                            {"id": "2024-06-12", "name": "2024-06-12"},
+                            {"id": "2024-09-18", "name": "2024-09-18"},
+                        ]
+                    }
+                ]
+            }
+        },
+    }
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, ecb_url, json=mock_body, status=200)
+        provider = ECBProvider()
+        df = provider.fetch("MRR_FR", date(2024, 1, 1), date(2024, 12, 31))
+
+    assert isinstance(df.index, pd.DatetimeIndex)
+    assert "value" in df.columns
+    assert "series_id" in df.columns
+    assert "source" in df.columns
+    assert len(df) == 2
+
+
+def test_ecb_provider_raises_on_bad_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """ECBProvider.fetch raises ProviderError on HTTP 500."""
+    import responses as rsps_lib
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.ecb import ECBProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    ecb_url = "https://data-api.ecb.europa.eu/service/data/FM/B.U2.EUR.4F.KR.MRR_FR.LEV"
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, ecb_url, status=500)
+        provider = ECBProvider()
+        with pytest.raises(ProviderError):
+            provider.fetch("MRR_FR", date(2024, 1, 1), date(2024, 12, 31))
