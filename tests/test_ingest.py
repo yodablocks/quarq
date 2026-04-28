@@ -187,3 +187,13 @@ def test_ecb_provider_raises_on_bad_response(monkeypatch: pytest.MonkeyPatch) ->
         provider = ECBProvider()
         with pytest.raises(ProviderError):
             provider.fetch("MRR_FR", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_oecd_provider_raises_on_unknown_series() -> None:
+    """OECDProvider.fetch raises ProviderError with informative message for unknown series."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.oecd import OECDProvider
+
+    provider = OECDProvider()
+    with pytest.raises(ProviderError, match="Unknown OECD series"):
+        provider.fetch("UNKNOWN_SERIES", date(2024, 1, 1), date(2024, 12, 31))
