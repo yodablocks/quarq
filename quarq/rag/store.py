@@ -66,7 +66,7 @@ class VectorStore:
             embeddings: Parallel list of embedding vectors (one per document).
 
         Returns:
-            Number of newly added documents (duplicates are skipped).
+            Number of documents upserted (existing chunks are updated in place).
 
         Raises:
             RAGError: On any ChromaDB error.
@@ -82,28 +82,17 @@ class VectorStore:
             for doc in documents
         ]
 
-        # Check which IDs already exist
         try:
-            existing = self._collection.get(ids=ids, include=[])
-            existing_ids = set(existing["ids"])
-        except Exception:
-            existing_ids = set()
-
-        new_indices = [i for i, id_ in enumerate(ids) if id_ not in existing_ids]
-        if not new_indices:
-            return 0
-
-        try:
-            self._collection.add(
-                ids=[ids[i] for i in new_indices],
-                documents=[contents[i] for i in new_indices],
-                embeddings=[embeddings[i] for i in new_indices],
-                metadatas=[metadatas[i] for i in new_indices],
+            self._collection.upsert(
+                ids=ids,
+                documents=contents,
+                embeddings=embeddings,
+                metadatas=metadatas,
             )
         except Exception as exc:
             raise RAGError(f"ChromaDB upsert failed: {exc}") from exc
 
-        return len(new_indices)
+        return len(ids)
 
     def query(
         self,
