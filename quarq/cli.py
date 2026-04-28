@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
@@ -179,6 +180,138 @@ def _launch_loop() -> None:
             input("  Press Enter to continue...")
 
 
+def _cmd_query(question: str, doc_type: str | None, k: int) -> None:
+    """Run a RAG query and print the answer with citations.
+
+    Args:
+        question: Natural language question to answer.
+        doc_type: Optional doc_type filter (e.g. 'ecb_fsr').
+        k: Number of chunks to retrieve.
+    """
+    from quarq.rag.embedder import Embedder
+    from quarq.rag.generator import answer, format_citations
+    from quarq.rag.retriever import Retriever
+    from quarq.rag.store import VectorStore
+
+    cfg = load_config()
+    store = VectorStore(cfg)
+
+    if store.count() == 0:
+        console.print(
+            Panel(
+                "[yellow]RAG corpus is empty. Run: [bold]quarq rag add ./docs/[/bold] "
+                "to index documents.[/yellow]",
+                title="No documents indexed",
+                border_style="yellow",
+            )
+        )
+        return
+
+    embedder = Embedder(model_name=cfg.embedder.model)
+    retriever = Retriever(store=store, embedder=embedder, cfg=cfg)
+
+    with console.status("[bold cyan]Retrieving relevant documents...", spinner="dots"):
+        chunks = retriever.retrieve(question, k=k, doc_type=doc_type)
+
+    if not chunks:
+        console.print(
+            Panel(
+                "[yellow]No relevant documents found above similarity threshold.[/yellow]\n"
+                "Try a different question or lower --k.",
+                border_style="yellow",
+            )
+        )
+        return
+
+    with console.status("[bold cyan]Generating answer...", spinner="dots"):
+        result = answer(question, chunks, cfg)
+
+    console.print(Panel(result.answer, title="[bold]Answer[/bold]", border_style="green"))
+
+    citation_table = Table(title="Sources", show_header=True, header_style="bold cyan")
+    citation_table.add_column("Source")
+    citation_table.add_column("Page", justify="right")
+    citation_table.add_column("Similarity", justify="right")
+    for chunk in chunks:
+        citation_table.add_row(chunk.source, str(chunk.page), f"{chunk.similarity:.2f}")
+    console.print(citation_table)
+
+    console.print(f"[dim]Model: {result.model}  Backend: {result.backend}  "
+                  f"Latency: {result.latency_ms}ms[/dim]")
+
+
+def _cmd_rag_status() -> None:
+    """Print RAG corpus statistics."""
+    from quarq.rag.store import VectorStore
+
+    cfg = load_config()
+    store = VectorStore(cfg)
+    chunk_count = store.count()
+    source_count = store.count_sources()
+
+    table = Table(title="RAG Corpus Status", show_header=True, header_style="bold cyan")
+    table.add_column("Metric")
+    table.add_column("Value", justify="right")
+    table.add_row("Chunks indexed", str(chunk_count))
+    table.add_row("Source documents", str(source_count))
+    table.add_row("Collection", "quarq_rag_v1")
+    table.add_row("Chroma path", cfg.rag.chroma_path)
+    console.print(table)
+
+
+def _cmd_rag_add(path_str: str) -> None:
+    """Index a file or folder into the RAG corpus.
+
+    Args:
+        path_str: Path to a PDF file or folder of PDFs.
+    """
+    from rich.progress import Progress, SpinnerColumn, TextColumn
+
+    from quarq.rag.embedder import Embedder
+    from quarq.rag.loader import load_folder, load_pdf
+    from quarq.rag.store import VectorStore
+
+    cfg = load_config()
+    target = Path(path_str).expanduser().resolve()
+
+    if not target.exists():
+        console.print(f"[red]Path does not exist: {target}[/red]")
+        sys.exit(1)
+
+    with console.status("[bold cyan]Loading documents...", spinner="dots"):
+        if target.is_file():
+            documents = load_pdf(target, chunk_size=cfg.rag.chunk_size,
+                                 chunk_overlap=cfg.rag.chunk_overlap)
+        else:
+            documents = load_folder(target, chunk_size=cfg.rag.chunk_size,
+                                    chunk_overlap=cfg.rag.chunk_overlap)
+
+    if not documents:
+        console.print("[yellow]No documents found to index.[/yellow]")
+        return
+
+    console.print(f"Loaded [bold]{len(documents)}[/bold] chunks from {target}")
+
+    embedder = Embedder(model_name=cfg.embedder.model)
+    store = VectorStore(cfg)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        console=console,
+    ) as progress:
+        task = progress.add_task("Embedding and indexing...", total=None)
+        embeddings = embedder.embed([doc.content for doc in documents])
+        added = store.upsert(documents, embeddings)
+        progress.update(task, completed=True)
+
+    console.print(
+        f"[green]Done.[/green] Added [bold]{added}[/bold] new chunks "
+        f"({len(documents) - added} duplicates skipped). "
+        f"Corpus now has [bold]{store.count()}[/bold] chunks."
+    )
+
+
 def main() -> None:
     """Entry point for the quarq CLI."""
     parser = argparse.ArgumentParser(
@@ -190,6 +323,19 @@ def main() -> None:
     subparsers.add_parser("status", help="Run checks and print status table")
     subparsers.add_parser("version", help="Print version and exit")
 
+    # quarq query
+    query_parser = subparsers.add_parser("query", help="Ask a question against the RAG corpus")
+    query_parser.add_argument("question", help="Natural language question")
+    query_parser.add_argument("--doc-type", default=None, help="Filter by doc_type (e.g. ecb_fsr)")
+    query_parser.add_argument("--k", type=int, default=5, help="Number of chunks to retrieve")
+
+    # quarq rag
+    rag_parser = subparsers.add_parser("rag", help="Manage the RAG document corpus")
+    rag_sub = rag_parser.add_subparsers(dest="rag_command")
+    rag_sub.add_parser("status", help="Print corpus statistics")
+    rag_add_parser = rag_sub.add_parser("add", help="Index a file or folder")
+    rag_add_parser.add_argument("path", help="Path to a PDF file or folder")
+
     args = parser.parse_args()
 
     try:
@@ -197,6 +343,15 @@ def main() -> None:
             _cmd_status()
         elif args.command == "version":
             console.print(f"quarq {__version__}")
+        elif args.command == "query":
+            _cmd_query(args.question, args.doc_type, args.k)
+        elif args.command == "rag":
+            if args.rag_command == "status":
+                _cmd_rag_status()
+            elif args.rag_command == "add":
+                _cmd_rag_add(args.path)
+            else:
+                rag_parser.print_help()
         else:
             _launch_loop()
     except KeyboardInterrupt:
