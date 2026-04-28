@@ -21,7 +21,8 @@ Returned DataFrame contract:
 `cache.py` stores pickled DataFrames in `~/.quarq/cache/`.
 TTL values:
 - equity: 3600 s (1 hour)
-- macro (fred, ecb, oecd, eurostat, bdf): 86400 s (24 hours)
+- euronext: 3600 s (1 hour — index composition can change intraday)
+- macro (fred, ecb, oecd, eurostat, bdf, amf, cdp): 86400 s (24 hours)
 
 ## Provider Registry
 
@@ -36,6 +37,27 @@ TTL values:
 | oecd | OECDProvider | oecd.py | CPI_FR, GDP_FR |
 | eurostat | EurostatProvider | eurostat.py | HICP_FR, UNEMP_FR, GDP_FR_Q |
 | bdf | BDFProvider | bdf.py | OAT_10Y_FR, CREDIT_FR |
+| euronext | EuronextProvider | euronext.py | CAC40_CONSTITUENTS, CAC40_PRICE |
+| amf | AMFProvider | amf.py | SFDR_FUNDS |
+| cdp | CDPProvider | cdp.py | CDP_SCORES, or any company name |
+
+## Euronext API Note
+
+Euronext API endpoint paths change occasionally. If `EuronextProvider.fetch` raises
+with "endpoint not found", check `https://api.euronext.com` for the current paths and
+update `_EURONEXT_BASE` in `quarq/ingest/euronext.py`.
+
+## AMF File Note
+
+The AMF SFDR Excel file URL and column structure change periodically.
+If `AMFProvider.fetch` raises, check `https://www.amf-france.org` for the current
+download URL and update `_AMF_SFDR_URL` in `quarq/ingest/amf.py`.
+
+## CDP Socrata Note
+
+The CDP Socrata endpoint (`data.cdp.net/resource/shjr-9ej4.csv`) is rate-limited
+and may be unavailable. On failure, `CDPProvider.fetch` raises `ProviderError`
+with instructions to download manually from `https://data.cdp.net`.
 
 ## Known Failure Modes
 
@@ -56,6 +78,18 @@ TTL values:
 | bdf      | HTTP 404 | Raises `ProviderError` with dataset ID + webstat portal URL |
 | bdf      | Other HTTP error | Raises `ProviderError` mentioning endpoint |
 | bdf      | Empty/malformed JSON | Raises `ProviderError` |
+| euronext | Unknown series_id | Raises `ProviderError` before any HTTP call |
+| euronext | HTTP 404 | Raises `ProviderError` with endpoint + docs URL |
+| euronext | Other HTTP error | Raises `ProviderError` mentioning endpoint |
+| euronext | Malformed JSON / no price | Raises `ProviderError` |
+| amf      | Unknown series_id | Raises `ProviderError` before any HTTP call |
+| amf      | Download failure | Raises `ProviderError` with URL + amf-france.org suggestion |
+| amf      | Excel parse failure | Raises `ProviderError` with file URL |
+| amf      | < 10 rows in file | Logs warning, continues |
+| cdp      | Unknown series type | Raises `ProviderError` |
+| cdp      | Connection error | Raises `ProviderError` with data.cdp.net manual download URL |
+| cdp      | No data for company | Raises `ProviderError` with company name |
+| cdp      | CSV schema changed | Raises `ProviderError` listing found columns |
 
 ## Adding a Provider
 

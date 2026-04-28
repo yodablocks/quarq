@@ -329,3 +329,113 @@ def test_provider_registry_includes_eurostat_and_bdf() -> None:
 
     provider = get_provider("bdf")
     assert isinstance(provider, BDFProvider)
+
+
+def test_euronext_provider_raises_on_unknown_series() -> None:
+    """EuronextProvider.fetch raises ProviderError with informative message for unknown series."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.euronext import EuronextProvider
+
+    provider = EuronextProvider()
+    with pytest.raises(ProviderError, match="Unknown Euronext series"):
+        provider.fetch("UNKNOWN", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_euronext_provider_raises_on_bad_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """EuronextProvider.fetch raises ProviderError on HTTP 500."""
+    import responses as rsps_lib
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.euronext import EuronextProvider, _EURONEXT_BASE
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, f"{_EURONEXT_BASE}/instruments/list", status=500)
+        provider = EuronextProvider()
+        with pytest.raises(ProviderError):
+            provider.fetch("CAC40_CONSTITUENTS", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_euronext_get_constituents_returns_none_on_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """get_cac40_constituents returns None when the endpoint raises ConnectionError."""
+    from unittest.mock import patch
+
+    from quarq.ingest import cache
+    from quarq.ingest.euronext import get_cac40_constituents
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    import requests as _requests
+    with patch("quarq.ingest.euronext.requests.get", side_effect=_requests.ConnectionError("unreachable")):
+        result = get_cac40_constituents()
+
+    assert result is None
+
+
+def test_amf_provider_raises_on_unknown_series() -> None:
+    """AMFProvider.fetch raises ProviderError for unrecognised series_id."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.amf import AMFProvider
+
+    provider = AMFProvider()
+    with pytest.raises(ProviderError, match="Unknown AMF series"):
+        provider.fetch("UNKNOWN", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_amf_provider_raises_on_download_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """AMFProvider.fetch raises ProviderError with URL in message on ConnectionError."""
+    from unittest.mock import patch
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.amf import AMFProvider, _AMF_SFDR_URL
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    import requests as _requests
+    with patch("quarq.ingest.amf.requests.get", side_effect=_requests.ConnectionError("unreachable")):
+        provider = AMFProvider()
+        with pytest.raises(ProviderError, match=_AMF_SFDR_URL):
+            provider.fetch("SFDR_FUNDS", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_cdp_provider_raises_on_download_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CDPProvider.fetch raises ProviderError with manual download instructions on failure."""
+    from unittest.mock import patch
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.cdp import CDPProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    import requests as _requests
+    with patch("quarq.ingest.cdp.requests.get", side_effect=_requests.ConnectionError("unreachable")):
+        provider = CDPProvider()
+        with pytest.raises(ProviderError, match="data.cdp.net"):
+            provider.fetch("CDP_SCORES", date(2022, 1, 1), date(2023, 12, 31))
+
+
+def test_provider_registry_includes_all_new_providers() -> None:
+    """get_provider returns correct instances for euronext, amf, and cdp."""
+    from quarq.ingest import get_provider
+    from quarq.ingest.amf import AMFProvider
+    from quarq.ingest.cdp import CDPProvider
+    from quarq.ingest.euronext import EuronextProvider
+
+    provider = get_provider("euronext")
+    assert isinstance(provider, EuronextProvider)
+
+    provider = get_provider("amf")
+    assert isinstance(provider, AMFProvider)
+
+    provider = get_provider("cdp")
+    assert isinstance(provider, CDPProvider)

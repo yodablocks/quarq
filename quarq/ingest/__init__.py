@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 from quarq.exceptions import ProviderError
+from quarq.ingest.amf import AMFProvider
 from quarq.ingest.base import BaseProvider
 from quarq.ingest.bdf import BDFProvider
+from quarq.ingest.cdp import CDPProvider
 from quarq.ingest.ecb import ECBProvider
 from quarq.ingest.equity import EquityProvider
+from quarq.ingest.euronext import EuronextProvider
 from quarq.ingest.eurostat import EurostatProvider
 from quarq.ingest.fred import FREDProvider
 from quarq.ingest.oecd import OECDProvider
@@ -18,6 +21,9 @@ PROVIDER_REGISTRY: dict[str, type[BaseProvider]] = {
     "oecd": OECDProvider,
     "eurostat": EurostatProvider,
     "bdf": BDFProvider,
+    "euronext": EuronextProvider,
+    "amf": AMFProvider,
+    "cdp": CDPProvider,
 }
 
 
@@ -25,7 +31,8 @@ def get_provider(name: str) -> BaseProvider:
     """Instantiate and return a provider by name.
 
     Args:
-        name: Provider name key (e.g. 'equity', 'fred', 'ecb', 'oecd', 'eurostat', 'bdf').
+        name: Provider name key (e.g. 'equity', 'fred', 'ecb', 'oecd', 'eurostat',
+            'bdf', 'euronext', 'amf', 'cdp').
 
     Returns:
         A new instance of the requested BaseProvider subclass.
