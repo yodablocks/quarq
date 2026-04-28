@@ -40,7 +40,8 @@ class AMFProvider(BaseProvider):
             fund name, ISIN, and SFDR article columns.
     """
 
-    fund_data: pd.DataFrame | None = None
+    def __init__(self) -> None:
+        self.fund_data: pd.DataFrame | None = None
 
     @property
     def name(self) -> str:
@@ -87,8 +88,6 @@ class AMFProvider(BaseProvider):
 
         cache.set(key, df, ttl_seconds=_AMF_TTL)
         return df
-
-    pass  # helpers are module-level
 
 
 def _download_excel(url: str) -> bytes:

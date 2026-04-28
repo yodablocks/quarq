@@ -14,6 +14,7 @@ import httpx
 
 from quarq import __version__
 from quarq.config import QuarqConfig, get_config_path
+from quarq.constants import RAG_COLLECTION_NAME
 
 _FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
 _ECB_URL = "https://data-api.ecb.europa.eu/service/data/ILM/W.U2.EUR.AF.B01.A"
@@ -117,7 +118,7 @@ def _check_corpus(cfg: QuarqConfig) -> tuple[int, int]:
 
         chroma_client = chromadb.PersistentClient(path=str(chroma_path))
         try:
-            col = chroma_client.get_collection("quarq_rag_v1")
+            col = chroma_client.get_collection(RAG_COLLECTION_NAME)
             chunk_count = col.count()
             if chunk_count > 0:
                 results = col.get(include=["metadatas"])

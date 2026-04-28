@@ -127,7 +127,6 @@ def fetch_portfolio(
             if close.empty:
                 if ticker == benchmark:
                     raise ProviderError(f"Benchmark {benchmark} returned no data")
-                logger.warning("No data for ticker %s; skipping", ticker)
                 continue
 
             df = pd.DataFrame(
@@ -144,9 +143,16 @@ def fetch_portfolio(
         except Exception as exc:
             if ticker == benchmark:
                 raise ProviderError(f"Failed to process benchmark {benchmark}: {exc}") from exc
-            logger.warning("Failed to process ticker %s: %s", ticker, exc)
+            raise ProviderError(f"Failed to process ticker {ticker}: {exc}") from exc
 
     if benchmark not in result:
         raise ProviderError(f"Benchmark {benchmark} could not be fetched")
+
+    missing = [t for t in tickers if t not in result]
+    if missing:
+        raise ProviderError(
+            f"No data returned for ticker(s): {missing}. "
+            "Remove them from the portfolio or check that the symbols are valid."
+        )
 
     return result

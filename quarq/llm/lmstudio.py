@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 import openai
 
 from quarq.config import QuarqConfig
@@ -48,25 +46,6 @@ class LMStudioLLM(BaseLLM):
             return self._cfg.llm.reporting_model
         return self._cfg.llm.research_model
 
-    def _resolve_model(self) -> str:
-        """Return the model name to use, auto-discovering if configured.
-
-        Returns:
-            Model name string.
-
-        Raises:
-            RAGError: If auto-discover is enabled but no models are found.
-        """
-        if self._cfg.lmstudio.auto_discover_model:
-            try:
-                models = self._client.models.list()
-                model_list = list(models)
-                if model_list:
-                    return model_list[0].id
-            except Exception:
-                pass
-        return self.model
-
     def generate(self, prompt: str, system: str = "") -> str:
         """Send a prompt to LM Studio and return the response text.
 
@@ -85,11 +64,9 @@ class LMStudioLLM(BaseLLM):
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
 
-        model_id = self._resolve_model()
-
         try:
             response = self._client.chat.completions.create(
-                model=model_id,
+                model=self.model,
                 messages=messages,  # type: ignore[arg-type]
                 timeout=_GENERATION_TIMEOUT,
             )

@@ -7,12 +7,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from quarq.config import QuarqConfig
+from quarq.constants import RAG_COLLECTION_NAME
 from quarq.exceptions import RAGError
 from quarq.rag.loader import Document
 
 logger = logging.getLogger(__name__)
-
-_COLLECTION_NAME = "quarq_rag_v1"
 
 
 @dataclass
@@ -52,7 +51,7 @@ class VectorStore:
         try:
             self._client = chromadb.PersistentClient(path=str(chroma_path))
             self._collection = self._client.get_or_create_collection(
-                name=_COLLECTION_NAME,
+                name=RAG_COLLECTION_NAME,
                 metadata={"hnsw:space": "cosine"},
             )
         except Exception as exc:

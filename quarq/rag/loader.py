@@ -156,7 +156,9 @@ def load_pdf(path: Path, chunk_size: int = 512, chunk_overlap: int = 64) -> list
                     continue
 
                 for chunk_text, pnum in _chunk_text(text, page_num, chunk_size, chunk_overlap):
-                    chunk_id = hashlib.sha256(chunk_text.encode("utf-8")).hexdigest()
+                    chunk_id = hashlib.sha256(
+                        f"{filename}:{pnum}:{chunk_text}".encode("utf-8")
+                    ).hexdigest()
                     doc = Document(
                         content=chunk_text,
                         metadata={

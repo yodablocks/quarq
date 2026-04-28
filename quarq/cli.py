@@ -18,6 +18,7 @@ from rich.text import Text
 
 from quarq import __version__
 from quarq.config import load_config
+from quarq.constants import RAG_COLLECTION_NAME
 from quarq.status import StatusResult, run_status_checks
 
 console = Console()
@@ -254,7 +255,7 @@ def _cmd_rag_status() -> None:
     table.add_column("Value", justify="right")
     table.add_row("Chunks indexed", str(chunk_count))
     table.add_row("Source documents", str(source_count))
-    table.add_row("Collection", "quarq_rag_v1")
+    table.add_row("Collection", RAG_COLLECTION_NAME)
     table.add_row("Chroma path", cfg.rag.chroma_path)
     console.print(table)
 

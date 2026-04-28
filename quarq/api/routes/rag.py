@@ -17,11 +17,10 @@ from quarq.rag.embedder import Embedder
 from quarq.rag.generator import answer
 from quarq.rag.loader import load_folder, load_pdf
 from quarq.rag.retriever import Retriever
+from quarq.constants import RAG_COLLECTION_NAME
 from quarq.rag.store import VectorStore
 
 router = APIRouter()
-
-_COLLECTION_NAME = "quarq_rag_v1"
 
 
 @router.post("/query", response_model=RAGQueryResponse)
@@ -135,7 +134,7 @@ def get_rag_status(request: Request) -> dict:
     return {
         "chunk_count": store.count(),
         "doc_count": store.count_sources(),
-        "collection": _COLLECTION_NAME,
+        "collection": RAG_COLLECTION_NAME,
         "chroma_path": cfg.rag.chroma_path,
     }
 
@@ -169,11 +168,11 @@ def delete_corpus(
     chroma_path = Path(cfg.rag.chroma_path).expanduser()
     client = chromadb.PersistentClient(path=str(chroma_path))
     try:
-        client.delete_collection(_COLLECTION_NAME)
+        client.delete_collection(RAG_COLLECTION_NAME)
     except Exception:
         pass
     client.get_or_create_collection(
-        name=_COLLECTION_NAME,
+        name=RAG_COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
     )
-    return {"status": "cleared", "collection": _COLLECTION_NAME}
+    return {"status": "cleared", "collection": RAG_COLLECTION_NAME}

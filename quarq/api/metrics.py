@@ -8,6 +8,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from quarq.exceptions import ProviderError
+
 
 def compute_portfolio_returns(
     prices: dict[str, pd.DataFrame],
@@ -19,15 +21,27 @@ def compute_portfolio_returns(
     Args:
         prices: Dict mapping ticker -> DataFrame with 'value' column.
         tickers: Ordered list of ticker symbols matching weights.
-        weights: Portfolio weights (must sum to 1.0).
+        weights: Portfolio weights (must sum to 1.0 and match tickers length).
 
     Returns:
         pd.Series of daily portfolio returns indexed by date.
+
+    Raises:
+        ProviderError: If any ticker is missing from prices or weights/tickers mismatch.
     """
-    close = pd.DataFrame({t: prices[t]["value"] for t in tickers if t in prices})
+    if len(weights) != len(tickers):
+        raise ProviderError(
+            f"weights length ({len(weights)}) must match tickers length ({len(tickers)})"
+        )
+    missing = [t for t in tickers if t not in prices]
+    if missing:
+        raise ProviderError(
+            f"Price data missing for ticker(s): {missing}. "
+            "Ensure all portfolio tickers were fetched successfully."
+        )
+    close = pd.DataFrame({t: prices[t]["value"] for t in tickers})
     returns = close.pct_change().dropna()
-    w = np.array(weights[: len(returns.columns)])
-    w = w / w.sum()
+    w = np.array(weights)
     portfolio_returns: pd.Series = returns.dot(w)
     return portfolio_returns
 
@@ -81,9 +95,10 @@ def cagr(returns: pd.Series) -> float | None:
     if len(returns) < 2:
         return None
     total = (1 + returns).prod()
-    years = len(returns) / 252
-    if years <= 0:
+    calendar_days = (returns.index[-1] - returns.index[0]).days
+    if calendar_days <= 0:
         return None
+    years = calendar_days / 365.25
     return float(total ** (1 / years) - 1)
 
 
