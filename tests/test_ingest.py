@@ -316,3 +316,16 @@ def test_bdf_provider_raises_on_404(monkeypatch: pytest.MonkeyPatch) -> None:
         provider = BDFProvider()
         with pytest.raises(ProviderError, match="endpoint"):
             provider.fetch("OAT_10Y_FR", date(2024, 1, 1), date(2024, 12, 31))
+
+
+def test_provider_registry_includes_eurostat_and_bdf() -> None:
+    """get_provider returns correct instances for eurostat and bdf."""
+    from quarq.ingest import get_provider
+    from quarq.ingest.bdf import BDFProvider
+    from quarq.ingest.eurostat import EurostatProvider
+
+    provider = get_provider("eurostat")
+    assert isinstance(provider, EurostatProvider)
+
+    provider = get_provider("bdf")
+    assert isinstance(provider, BDFProvider)
