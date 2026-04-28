@@ -74,19 +74,29 @@ class VectorStore:
         if not documents:
             return 0
 
-        ids = [str(doc.metadata["chunk_id"]) for doc in documents]
-        contents = [doc.content for doc in documents]
+        seen: set[str] = set()
+        deduped_docs: list[Document] = []
+        deduped_embeddings: list[list[float]] = []
+        for doc, emb in zip(documents, embeddings):
+            cid = str(doc.metadata["chunk_id"])
+            if cid not in seen:
+                seen.add(cid)
+                deduped_docs.append(doc)
+                deduped_embeddings.append(emb)
+
+        ids = [str(doc.metadata["chunk_id"]) for doc in deduped_docs]
+        contents = [doc.content for doc in deduped_docs]
         metadatas = [
             {k: str(v) if not isinstance(v, (str, int, float, bool)) else v
              for k, v in doc.metadata.items()}
-            for doc in documents
+            for doc in deduped_docs
         ]
 
         try:
             self._collection.upsert(
                 ids=ids,
                 documents=contents,
-                embeddings=embeddings,
+                embeddings=deduped_embeddings,
                 metadatas=metadatas,
             )
         except Exception as exc:
