@@ -21,12 +21,21 @@ Returned DataFrame contract:
 `cache.py` stores pickled DataFrames in `~/.quarq/cache/`.
 TTL values:
 - equity: 3600 s (1 hour)
-- macro (fred, ecb, oecd): 86400 s (24 hours)
+- macro (fred, ecb, oecd, eurostat, bdf): 86400 s (24 hours)
 
 ## Provider Registry
 
 `PROVIDER_REGISTRY` in `__init__.py` maps provider names to classes.
 `get_provider(name)` instantiates by name; raises `ProviderError` for unknowns.
+
+| Key | Class | Module | Series |
+|-----|-------|--------|--------|
+| equity | EquityProvider | equity.py | Any yfinance ticker |
+| fred | FREDProvider | fred.py | Any FRED series code |
+| ecb | ECBProvider | ecb.py | MRR_FR |
+| oecd | OECDProvider | oecd.py | CPI_FR, GDP_FR |
+| eurostat | EurostatProvider | eurostat.py | HICP_FR, UNEMP_FR, GDP_FR_Q |
+| bdf | BDFProvider | bdf.py | OAT_10Y_FR, CREDIT_FR |
 
 ## Known Failure Modes
 
@@ -40,6 +49,13 @@ TTL values:
 | ecb      | Malformed JSON | Raises `ProviderError` |
 | oecd     | Unknown series_id | Raises `ProviderError` before any HTTP call |
 | oecd     | Endpoint unreachable | Raises `ProviderError` |
+| eurostat | Unknown series_id | Raises `ProviderError` before any HTTP call |
+| eurostat | HTTP error | Raises `ProviderError` |
+| eurostat | Malformed JSON | Raises `ProviderError` |
+| bdf      | Unknown series_id | Raises `ProviderError` before any HTTP call |
+| bdf      | HTTP 404 | Raises `ProviderError` with dataset ID + webstat portal URL |
+| bdf      | Other HTTP error | Raises `ProviderError` mentioning endpoint |
+| bdf      | Empty/malformed JSON | Raises `ProviderError` |
 
 ## Adding a Provider
 
@@ -47,3 +63,10 @@ TTL values:
 2. Add to `PROVIDER_REGISTRY` in `__init__.py`
 3. Add mocked HTTP tests in `tests/test_ingest.py`
 4. Document cache TTL and known failures in this file
+
+## BdF API Note
+
+The Banque de France webstat API endpoint paths change occasionally.
+If `BDFProvider.fetch` raises with "endpoint not found", check
+https://webstat.banque-france.fr for the current dataset ID and update
+`_SERIES_MAP` in `quarq/ingest/bdf.py`.
