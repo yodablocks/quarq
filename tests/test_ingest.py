@@ -91,3 +91,29 @@ def test_equity_provider_raises_on_empty_data(monkeypatch: pytest.MonkeyPatch) -
         provider = EquityProvider()
         with pytest.raises(ProviderError, match="No data returned"):
             provider.fetch("BADTICKER", date(2025, 1, 1), date(2025, 1, 31))
+
+
+def test_fred_provider_raises_without_key() -> None:
+    """FREDProvider.fetch raises ProviderError immediately when api key is empty."""
+    from quarq.config import QuarqConfig
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.fred import FREDProvider
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = ""
+    provider = FREDProvider(cfg)
+    with pytest.raises(ProviderError, match="FRED API key required"):
+        provider.fetch("OAT10Y", date(2025, 1, 1), date(2025, 12, 31))
+
+
+def test_fred_get_risk_free_rate_fallback() -> None:
+    """get_risk_free_rate returns fallback float when no API key is configured."""
+    from quarq.config import QuarqConfig
+    from quarq.ingest.fred import get_risk_free_rate
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = ""
+    cfg.portfolio.risk_free_rate_fallback = 0.03
+
+    rate = get_risk_free_rate(cfg)
+    assert rate == 0.03
