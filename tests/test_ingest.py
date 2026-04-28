@@ -215,3 +215,71 @@ def test_provider_registry_get_provider() -> None:
 
     with pytest.raises(ProviderError, match="Unknown provider"):
         get_provider("unknown")
+
+
+def test_eurostat_provider_parses_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """EurostatProvider.fetch parses a minimal valid Eurostat JSON response."""
+    import responses as rsps_lib
+
+    from quarq.ingest import cache
+    from quarq.ingest.eurostat import EurostatProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    eurostat_url = (
+        "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_midx"
+    )
+    mock_body = {
+        "value": {"0": 112.3, "1": 113.1},
+        "dimension": {
+            "time": {
+                "category": {
+                    "index": {"2023-01": 0, "2023-02": 1}
+                }
+            }
+        },
+    }
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, eurostat_url, json=mock_body, status=200)
+        provider = EurostatProvider()
+        df = provider.fetch("HICP_FR", date(2023, 1, 1), date(2023, 12, 31))
+
+    assert isinstance(df.index, pd.DatetimeIndex)
+    assert list(df.columns) == ["value", "series_id", "source"]
+    assert df["series_id"].iloc[0] == "HICP_FR"
+    assert df["source"].iloc[0] == "eurostat"
+    assert len(df) == 2
+
+
+def test_eurostat_provider_raises_on_unknown_series() -> None:
+    """EurostatProvider.fetch raises ProviderError for unrecognised series_id."""
+    from quarq.exceptions import ProviderError
+    from quarq.ingest.eurostat import EurostatProvider
+
+    provider = EurostatProvider()
+    with pytest.raises(ProviderError, match="Unknown Eurostat series"):
+        provider.fetch("UNKNOWN_SERIES", date(2023, 1, 1), date(2023, 12, 31))
+
+
+def test_eurostat_provider_raises_on_bad_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    """EurostatProvider.fetch raises ProviderError on HTTP 500."""
+    import responses as rsps_lib
+
+    from quarq.exceptions import ProviderError
+    from quarq.ingest import cache
+    from quarq.ingest.eurostat import EurostatProvider
+
+    monkeypatch.setattr(cache, "get", lambda key: None)
+    monkeypatch.setattr(cache, "set", lambda key, data, ttl_seconds: None)
+
+    eurostat_url = (
+        "https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/prc_hicp_midx"
+    )
+
+    with rsps_lib.RequestsMock() as mock:
+        mock.add(rsps_lib.GET, eurostat_url, status=500)
+        provider = EurostatProvider()
+        with pytest.raises(ProviderError):
+            provider.fetch("HICP_FR", date(2023, 1, 1), date(2023, 12, 31))
