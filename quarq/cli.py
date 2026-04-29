@@ -470,7 +470,7 @@ def _cmd_report(
         console.print(f"[green]Report saved to:[/green] {out_path}")
 
     if open_browser:
-        webbrowser.open(out_path.as_uri())
+        webbrowser.open(out_path.resolve().as_uri())
 
 
 def _cmd_serve(host: str, port: int, reload: bool) -> None:
