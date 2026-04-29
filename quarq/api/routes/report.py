@@ -157,14 +157,19 @@ def _render_response(
         return Response(content=html, media_type="text/html")
 
     # JSON format
+    import json
+
     import plotly.io as pio
 
-    chart_json = {
-        k: pio.to_json(v) if v is not None else None
-        for k, v in figures.items()
+    payload = {
+        "metrics": metrics.model_dump(mode="json"),
+        "charts": {
+            k: json.loads(pio.to_json(v)) if v is not None else None
+            for k, v in figures.items()
+        },
     }
     return Response(
-        content=metrics.model_dump_json() + "\n" + str(chart_json),
+        content=json.dumps(payload),
         media_type="application/json",
     )
 

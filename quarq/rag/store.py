@@ -57,6 +57,8 @@ class VectorStore:
         except Exception as exc:
             raise RAGError(f"Failed to initialise ChromaDB at {chroma_path}: {exc}") from exc
 
+        self._cached_count: int | None = None
+
     def upsert(self, documents: list[Document], embeddings: list[list[float]]) -> int:
         """Add documents to the collection, skipping existing chunk_ids.
 
@@ -101,6 +103,7 @@ class VectorStore:
         except Exception as exc:
             raise RAGError(f"ChromaDB upsert failed: {exc}") from exc
 
+        self._cached_count = None
         return len(ids)
 
     def query(
@@ -123,9 +126,12 @@ class VectorStore:
             RAGError: On any ChromaDB error.
         """
         try:
+            if self._cached_count is None:
+                self._cached_count = self._collection.count()
+            n_results = min(k, max(self._cached_count, 1))
             kwargs: dict = {
                 "query_embeddings": [embedding],
-                "n_results": min(k, max(self.count(), 1)),
+                "n_results": n_results,
                 "include": ["documents", "metadatas", "distances"],
             }
             if filters:
@@ -181,6 +187,8 @@ class VectorStore:
             )
         except Exception as exc:
             raise RAGError(f"VectorStore.reset failed: {exc}") from exc
+
+        self._cached_count = 0
 
     def count_sources(self) -> int:
         """Return number of unique source documents.

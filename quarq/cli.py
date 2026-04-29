@@ -423,11 +423,11 @@ def _cmd_report(
     narrative: str | None = None
     if include_narrative:
         with console.status("[cyan]Generating narrative...", spinner="dots"):
-            try:
-                narrative = m.generate_narrative(metrics, cfg)
-            except Exception:
-                console.print("[yellow]Warning: LM Studio unavailable — generating report without narrative.[/yellow]")
-                narrative = None
+            narrative = m.generate_narrative(metrics, cfg) or None
+        if not narrative:
+            console.print(
+                "[yellow]Warning: LM Studio unavailable — generating report without narrative.[/yellow]"
+            )
 
     report_date = date.today().isoformat()
     html = render_html(
