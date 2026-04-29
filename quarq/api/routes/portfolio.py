@@ -61,7 +61,7 @@ def post_metrics(body: PortfolioRequest, request: Request) -> MetricsResponse:
 
     elapsed_ms = int((time.monotonic() - t0) * 1000)
 
-    return MetricsResponse(
+    metrics = MetricsResponse(
         tickers=body.tickers,
         weights=body.weights,
         start=body.start,
@@ -77,6 +77,11 @@ def post_metrics(body: PortfolioRequest, request: Request) -> MetricsResponse:
         risk_free_rate=rfr,
         computation_time_ms=elapsed_ms,
     )
+
+    if body.include_narrative:
+        metrics.narrative = m.generate_narrative(metrics, cfg)
+
+    return metrics
 
 
 @router.get("/providers")

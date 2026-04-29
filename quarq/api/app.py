@@ -14,6 +14,7 @@ from quarq.api.routes.data import router as data_router
 from quarq.api.routes.health import router as health_router
 from quarq.api.routes.portfolio import router as portfolio_router
 from quarq.api.routes.rag import router as rag_router
+from quarq.api.routes.report import router as report_router
 from quarq.config import QuarqConfig, load_config
 from quarq.status import run_status_checks
 
@@ -67,6 +68,7 @@ app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(portfolio_router, prefix="/portfolio", tags=["portfolio"])
 app.include_router(rag_router, prefix="/rag", tags=["rag"])
 app.include_router(data_router, prefix="/data", tags=["data"])
+app.include_router(report_router, prefix="/report", tags=["report"])
 
 
 @app.get("/")

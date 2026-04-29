@@ -39,7 +39,7 @@ def _make_returns_df(tickers: list[str] = None, n: int = 60) -> pd.DataFrame:
 def _make_metrics() -> SimpleNamespace:
     return SimpleNamespace(
         cagr=0.12,
-        sharpe=1.2,
+        sharpe_ratio=1.2,
         max_drawdown=-0.15,
         var_95=-0.02,
         beta=0.95,
