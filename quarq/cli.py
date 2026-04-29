@@ -313,6 +313,166 @@ def _cmd_rag_add(path_str: str) -> None:
     )
 
 
+def _cmd_report(
+    portfolio_path: str,
+    fmt: str,
+    output: str | None,
+    include_narrative: bool,
+    open_browser: bool,
+) -> None:
+    """Generate a portfolio report from a TOML file.
+
+    Args:
+        portfolio_path: Path to the portfolio TOML file.
+        fmt: Output format: 'html', 'json', or 'pdf'.
+        output: Output file path (default: quarq_report_YYYY-MM-DD.html).
+        include_narrative: Whether to generate the LLM narrative paragraph.
+        open_browser: Whether to open the output file in the browser after generation.
+    """
+    import webbrowser
+    from datetime import date
+
+    from quarq.api import metrics as m
+    from quarq.ingest.equity import fetch_portfolio
+    from quarq.ingest.fred import get_risk_free_rate
+    from quarq.portfolio import load_portfolio
+    from quarq.report.charts import (
+        correlation_heatmap,
+        cumulative_returns_line,
+        drawdown_area,
+        rolling_sharpe,
+        weight_treemap,
+    )
+    from quarq.report.renderer import render_html, render_pdf
+
+    import pandas as pd
+    from quarq.api.models import MetricsResponse
+    from quarq.exceptions import ConfigError, ProviderError, QuarqError
+
+    cfg = load_config()
+
+    try:
+        spec = load_portfolio(Path(portfolio_path).expanduser().resolve())
+    except ConfigError as exc:
+        console.print(f"[red]Portfolio TOML error: {exc}[/red]")
+        sys.exit(1)
+
+    console.print(f"Loaded portfolio: [bold]{spec.name}[/bold] ({len(spec.tickers)} tickers)")
+
+    with console.status("[cyan]Fetching price data...", spinner="dots"):
+        try:
+            prices = fetch_portfolio(
+                tickers=spec.tickers,
+                start=spec.start,
+                end=spec.end,
+                benchmark=spec.benchmark,
+            )
+        except ProviderError as exc:
+            console.print(f"[red]Data fetch failed: {exc}[/red]")
+            sys.exit(1)
+
+    rfr = get_risk_free_rate(cfg)
+    portfolio_returns = m.compute_portfolio_returns(prices, spec.tickers, spec.weights)
+    bm_df = prices.get(spec.benchmark)
+    benchmark_returns = bm_df["value"].pct_change().dropna() if bm_df is not None else None
+    beta_val = m.beta(portfolio_returns, benchmark_returns) if benchmark_returns is not None else None
+    alpha_val = (
+        m.alpha(portfolio_returns, benchmark_returns, beta_val, rfr)
+        if benchmark_returns is not None else None
+    )
+
+    metrics = MetricsResponse(
+        tickers=spec.tickers,
+        weights=spec.weights,
+        start=spec.start,
+        end=spec.end,
+        benchmark=spec.benchmark,
+        sharpe_ratio=m.sharpe_ratio(portfolio_returns, rfr),
+        max_drawdown=m.max_drawdown(portfolio_returns),
+        cagr=m.cagr(portfolio_returns),
+        volatility=m.volatility(portfolio_returns),
+        var_95=m.var_95(portfolio_returns),
+        beta=beta_val,
+        alpha=alpha_val,
+        risk_free_rate=rfr,
+    )
+
+    returns_df_parts = []
+    for ticker in spec.tickers:
+        df = prices.get(ticker)
+        if df is not None:
+            s = df["value"].pct_change().dropna().rename(ticker)
+            returns_df_parts.append(s)
+    if len(returns_df_parts) > 1:
+        returns_df = pd.concat(returns_df_parts, axis=1).dropna()
+    elif returns_df_parts:
+        returns_df = returns_df_parts[0].to_frame()
+    else:
+        returns_df = pd.DataFrame()
+
+    bench_for_chart = benchmark_returns if benchmark_returns is not None else portfolio_returns
+
+    figures = {
+        "cumulative_returns": cumulative_returns_line(portfolio_returns, bench_for_chart, label=spec.name),
+        "drawdown": drawdown_area(portfolio_returns),
+        "rolling_sharpe": rolling_sharpe(portfolio_returns, rfr=rfr),
+        "correlation_heatmap": correlation_heatmap(returns_df) if not returns_df.empty else None,
+        "weight_treemap": weight_treemap(dict(zip(spec.tickers, spec.weights)), spec.sleeve_map),
+    }
+
+    narrative: str | None = None
+    if include_narrative:
+        with console.status("[cyan]Generating narrative...", spinner="dots"):
+            try:
+                narrative = m.generate_narrative(metrics, cfg)
+            except Exception:
+                console.print("[yellow]Warning: LM Studio unavailable — generating report without narrative.[/yellow]")
+                narrative = None
+
+    report_date = date.today().isoformat()
+    html = render_html(
+        portfolio_name=spec.name,
+        metrics=metrics,
+        figures={k: v for k, v in figures.items() if v is not None},
+        narrative=narrative,
+        benchmark=spec.benchmark,
+        period_start=spec.start.isoformat(),
+        period_end=spec.end.isoformat(),
+        currency=spec.currency,
+        report_date=report_date,
+    )
+
+    default_ext = "pdf" if fmt == "pdf" else "html"
+    out_path = Path(output) if output else Path(f"quarq_report_{report_date}.{default_ext}")
+
+    if fmt == "pdf":
+        try:
+            render_pdf(html, out_path)
+            console.print(f"[green]PDF saved to:[/green] {out_path}")
+        except QuarqError as exc:
+            console.print(f"[yellow]Warning: {exc}[/yellow]")
+            html_path = out_path.with_suffix(".html")
+            html_path.write_text(html, encoding="utf-8")
+            console.print(f"[green]HTML fallback saved to:[/green] {html_path}")
+            out_path = html_path
+    elif fmt == "json":
+        import plotly.io as pio
+        import json
+        payload = {
+            "metrics": metrics.model_dump(mode="json"),
+            "charts": {k: pio.to_json(v) if v is not None else None for k, v in figures.items()},
+        }
+        out_path = out_path.with_suffix(".json") if output is None else out_path
+        out_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        console.print(f"[green]JSON saved to:[/green] {out_path}")
+    else:
+        out_path.write_text(html, encoding="utf-8")
+        console.print(f"[green]Report saved to:[/green] {out_path}")
+
+    if open_browser:
+        webbrowser.open(out_path.as_uri())
+
+
 def _cmd_serve(host: str, port: int, reload: bool) -> None:
     """Start the quarq FastAPI server with uvicorn.
 
@@ -363,6 +523,17 @@ def main() -> None:
     serve_parser.add_argument("--port", type=int, default=8000, help="TCP port")
     serve_parser.add_argument("--reload", action="store_true", help="Enable auto-reload")
 
+    # quarq report
+    report_parser = subparsers.add_parser("report", help="Generate a portfolio report from a TOML file")
+    report_parser.add_argument("--portfolio", required=True, help="Path to portfolio TOML file")
+    report_parser.add_argument(
+        "--format", default="html", choices=["html", "pdf", "json"], help="Output format"
+    )
+    report_parser.add_argument("--output", default=None, help="Output file path")
+    report_parser.add_argument("--narrative", action="store_true", help="Include LLM narrative")
+    report_parser.add_argument("--open", action="store_true", dest="open_browser",
+                               help="Open report in browser after generation")
+
     args = parser.parse_args()
 
     try:
@@ -381,6 +552,14 @@ def main() -> None:
                 rag_parser.print_help()
         elif args.command == "serve":
             _cmd_serve(args.host, args.port, args.reload)
+        elif args.command == "report":
+            _cmd_report(
+                portfolio_path=args.portfolio,
+                fmt=args.format,
+                output=args.output,
+                include_narrative=args.narrative,
+                open_browser=args.open_browser,
+            )
         else:
             _launch_loop()
     except KeyboardInterrupt:

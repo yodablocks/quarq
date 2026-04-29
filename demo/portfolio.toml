@@ -1,0 +1,45 @@
+name = "CAC40 Multi-Sleeve Demo"
+benchmark = "^FCHI"
+start = "2024-01-01"
+end = "2024-12-31"
+currency = "EUR"
+
+[[sleeve]]
+name = "Growth"
+weight = 0.40
+
+[[sleeve.holding]]
+ticker = "MC.PA"
+weight = 0.40
+
+[[sleeve.holding]]
+ticker = "AIR.PA"
+weight = 0.35
+
+[[sleeve.holding]]
+ticker = "SU.PA"
+weight = 0.25
+
+[[sleeve]]
+name = "Defensive"
+weight = 0.35
+
+[[sleeve.holding]]
+ticker = "SAN.PA"
+weight = 0.60
+
+[[sleeve.holding]]
+ticker = "OR.PA"
+weight = 0.40
+
+[[sleeve]]
+name = "Financial"
+weight = 0.25
+
+[[sleeve.holding]]
+ticker = "BNP.PA"
+weight = 0.50
+
+[[sleeve.holding]]
+ticker = "ACA.PA"
+weight = 0.50
