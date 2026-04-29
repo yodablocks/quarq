@@ -13,7 +13,7 @@ from datetime import date, timedelta
 
 class Tools:
     def __init__(self):
-        self.base_url = "http://127.0.0.1:8000"
+        self.base_url = "http://host.docker.internal:8000"
 
     def analyse_portfolio(
         self,

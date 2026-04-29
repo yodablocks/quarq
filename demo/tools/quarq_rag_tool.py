@@ -12,7 +12,7 @@ import httpx
 
 class Tools:
     def __init__(self):
-        self.base_url = "http://127.0.0.1:8000"
+        self.base_url = "http://host.docker.internal:8000"
 
     def query_financial_documents(self, question: str) -> str:
         """Query the quarq RAG corpus for answers grounded in institutional documents.
