@@ -473,6 +473,23 @@ def _cmd_report(
         webbrowser.open(out_path.resolve().as_uri())
 
 
+def _cmd_config_set_lmstudio_url(url: str) -> None:
+    """Update lmstudio.url in ~/.quarq/config.toml and print confirmation.
+
+    Args:
+        url: New LM Studio base URL, e.g. http://192.168.1.101:1234/v1.
+    """
+    from quarq.config import save_config
+
+    cfg = load_config()
+    old_url = cfg.lmstudio.url
+    cfg.lmstudio.url = url
+    save_config(cfg)
+    console.print(f"[green]LM Studio URL updated.[/green]")
+    console.print(f"  [dim]was:[/dim] {old_url}")
+    console.print(f"  [dim]now:[/dim] {url}")
+
+
 def _cmd_serve(host: str, port: int, reload: bool) -> None:
     """Start the quarq FastAPI server with uvicorn.
 
@@ -517,6 +534,14 @@ def main() -> None:
     rag_add_parser = rag_sub.add_parser("add", help="Index a file or folder")
     rag_add_parser.add_argument("path", help="Path to a PDF file or folder")
 
+    # quarq config
+    config_parser = subparsers.add_parser("config", help="View or update quarq configuration")
+    config_parser.add_argument(
+        "--set-lmstudio-url",
+        metavar="URL",
+        help="Set the LM Studio base URL, e.g. http://192.168.1.101:1234/v1",
+    )
+
     # quarq serve
     serve_parser = subparsers.add_parser("serve", help="Start the FastAPI REST API server")
     serve_parser.add_argument("--host", default="127.0.0.1", help="Bind host")
@@ -550,6 +575,11 @@ def main() -> None:
                 _cmd_rag_add(args.path)
             else:
                 rag_parser.print_help()
+        elif args.command == "config":
+            if args.set_lmstudio_url:
+                _cmd_config_set_lmstudio_url(args.set_lmstudio_url)
+            else:
+                config_parser.print_help()
         elif args.command == "serve":
             _cmd_serve(args.host, args.port, args.reload)
         elif args.command == "report":
