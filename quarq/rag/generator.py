@@ -39,9 +39,9 @@ def _build_prompt(
         parts.append("")
 
     parts.append("RETRIEVED DOCUMENTS:")
-    for i, chunk in enumerate(chunks, start=1):
+    for i, chunk in enumerate(chunks[:3], start=1):
         parts.append(f"[{i}] Source: {chunk.source}, Page: {chunk.page}")
-        parts.append(chunk.content)
+        parts.append(chunk.content[:500])
         parts.append("")
 
     parts.append(query)
