@@ -12,6 +12,7 @@ from typing import Any
 import plotly.graph_objects as go
 import plotly.io as pio
 from jinja2 import Environment, FileSystemLoader
+from markupsafe import Markup
 
 from quarq import __version__
 from quarq.exceptions import QuarqError
@@ -97,15 +98,15 @@ def render_html(
         "correlation_heatmap",
         "weight_treemap",
     ]
-    embedded: dict[str, str] = {}
+    embedded: dict[str, Markup] = {}
     first = True
     for key in ordered_keys:
         fig = figures.get(key)
         if fig is not None:
-            embedded[key] = _embed_figure(fig, first=first)
+            embedded[key] = Markup(_embed_figure(fig, first=first))
             first = False
         else:
-            embedded[key] = ""
+            embedded[key] = Markup("")
 
     template = env.get_template(_TEMPLATE_NAME)
     return template.render(
