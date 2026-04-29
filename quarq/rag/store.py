@@ -167,6 +167,21 @@ class VectorStore:
             logger.warning("VectorStore.count failed: %s", exc)
             return 0
 
+    def reset(self) -> None:
+        """Delete and recreate the collection, wiping all stored chunks.
+
+        Raises:
+            RAGError: If deletion or recreation fails.
+        """
+        try:
+            self._client.delete_collection(RAG_COLLECTION_NAME)
+            self._collection = self._client.get_or_create_collection(
+                name=RAG_COLLECTION_NAME,
+                metadata={"hnsw:space": "cosine"},
+            )
+        except Exception as exc:
+            raise RAGError(f"VectorStore.reset failed: {exc}") from exc
+
     def count_sources(self) -> int:
         """Return number of unique source documents.
 

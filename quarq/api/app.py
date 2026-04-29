@@ -14,8 +14,10 @@ from quarq.api.routes.data import router as data_router
 from quarq.api.routes.health import router as health_router
 from quarq.api.routes.portfolio import router as portfolio_router
 from quarq.api.routes.rag import router as rag_router
-from quarq.config import load_config
+from quarq.config import QuarqConfig, load_config
 from quarq.status import run_status_checks
+
+_startup_cfg: QuarqConfig = load_config()
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +57,9 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=_startup_cfg.api.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["*"],
 )
 

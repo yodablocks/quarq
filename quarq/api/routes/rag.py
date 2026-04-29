@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Request
@@ -13,6 +14,7 @@ from quarq.api.models import (
     RAGQueryResponse,
     SourceCitation,
 )
+from quarq.exceptions import RAGError
 from quarq.rag.embedder import Embedder
 from quarq.rag.generator import answer
 from quarq.rag.loader import load_folder, load_pdf
@@ -143,18 +145,21 @@ def get_rag_status(request: Request) -> dict:
 def delete_corpus(
     request: Request,
     x_confirm_delete: str | None = Header(default=None, alias="X-Confirm-Delete"),
+    x_admin_key: str | None = Header(default=None, alias="X-Admin-Key"),
 ) -> dict:
     """Clear the entire RAG corpus (destructive, requires confirmation header).
 
     Args:
         request: FastAPI Request (provides app.state.config).
         x_confirm_delete: Must be "true" to proceed (X-Confirm-Delete header).
+        x_admin_key: Required when cfg.api.admin_key is set (X-Admin-Key header).
 
     Returns:
         Dict with status and collection name.
 
     Raises:
         HTTPException 400: If X-Confirm-Delete header is missing or not "true".
+        HTTPException 403: If admin_key is configured and the provided key does not match.
     """
     if x_confirm_delete != "true":
         raise HTTPException(
@@ -163,16 +168,17 @@ def delete_corpus(
         )
 
     cfg = request.app.state.config
-    import chromadb
 
-    chroma_path = Path(cfg.rag.chroma_path).expanduser()
-    client = chromadb.PersistentClient(path=str(chroma_path))
+    if cfg.api.admin_key:
+        provided = (x_admin_key or "").encode()
+        expected = cfg.api.admin_key.encode()
+        if not hmac.compare_digest(provided, expected):
+            raise HTTPException(status_code=403, detail="Invalid admin key")
+
+    store = VectorStore(cfg)
     try:
-        client.delete_collection(RAG_COLLECTION_NAME)
-    except Exception:
-        pass
-    client.get_or_create_collection(
-        name=RAG_COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"},
-    )
+        store.reset()
+    except RAGError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     return {"status": "cleared", "collection": RAG_COLLECTION_NAME}

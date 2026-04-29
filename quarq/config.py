@@ -70,6 +70,13 @@ class PortfolioConfig(BaseModel):
     risk_free_rate_fallback: float = 0.03
 
 
+class APIConfig(BaseModel):
+    """FastAPI server settings."""
+
+    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    admin_key: str = ""
+
+
 class QuarqConfig(BaseModel):
     """Top-level quarq configuration."""
 
@@ -79,6 +86,7 @@ class QuarqConfig(BaseModel):
     data: DataConfig = Field(default_factory=DataConfig)
     rag: RAGConfig = Field(default_factory=RAGConfig)
     portfolio: PortfolioConfig = Field(default_factory=PortfolioConfig)
+    api: APIConfig = Field(default_factory=APIConfig)
 
 
 def get_config_path() -> Path:
