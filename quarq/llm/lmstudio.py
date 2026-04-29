@@ -33,6 +33,7 @@ class LMStudioLLM(BaseLLM):
             base_url=cfg.lmstudio.url,
             api_key="not-required",
         )
+        self._discovered_model: str | None = None
 
     @property
     def name(self) -> str:  # type: ignore[override]
@@ -41,10 +42,32 @@ class LMStudioLLM(BaseLLM):
 
     @property
     def model(self) -> str:
-        """Model name from config for the configured agent."""
+        """Active model name — discovered from LM Studio if auto_discover_model is set."""
+        if self._cfg.lmstudio.auto_discover_model:
+            if self._discovered_model is None:
+                self._discovered_model = self._discover_model()
+            return self._discovered_model
         if self._agent == "reporting":
             return self._cfg.llm.reporting_model
         return self._cfg.llm.research_model
+
+    def _discover_model(self) -> str:
+        """Query LM Studio for the first available model ID.
+
+        Returns:
+            The first model ID returned by LM Studio, or the config model name on failure.
+        """
+        fallback = (
+            self._cfg.llm.reporting_model
+            if self._agent == "reporting"
+            else self._cfg.llm.research_model
+        )
+        try:
+            models = self._client.models.list()
+            first = next(iter(models.data), None)
+            return first.id if first is not None else fallback
+        except Exception:
+            return fallback
 
     def generate(self, prompt: str, system: str = "") -> str:
         """Send a prompt to LM Studio and return the response text.
