@@ -86,7 +86,7 @@ def render_html(
     tmpl_dir = template_path or _TEMPLATE_DIR
     env = Environment(
         loader=FileSystemLoader(str(tmpl_dir)),
-        autoescape=True,
+        autoescape=False,
     )
     env.filters["pct"] = _pct
     env.filters["round2"] = _round2

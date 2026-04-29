@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ portfolio_name }} — quarq Report</title>
+<title>{{ portfolio_name | e }} — quarq Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F9FAFB; color: #111827; }
@@ -25,12 +25,12 @@
 <body>
 <div class="container">
   <header>
-    <h1>{{ portfolio_name }}</h1>
+    <h1>{{ portfolio_name | e }}</h1>
     <div class="meta">
-      <span><strong>Report date:</strong> {{ report_date }}</span>
-      <span><strong>Benchmark:</strong> {{ benchmark }}</span>
-      <span><strong>Period:</strong> {{ period_start }} — {{ period_end }}</span>
-      <span><strong>Currency:</strong> {{ currency }}</span>
+      <span><strong>Report date:</strong> {{ report_date | e }}</span>
+      <span><strong>Benchmark:</strong> {{ benchmark | e }}</span>
+      <span><strong>Period:</strong> {{ period_start | e }} — {{ period_end | e }}</span>
+      <span><strong>Currency:</strong> {{ currency | e }}</span>
     </div>
   </header>
 
@@ -66,7 +66,7 @@
   </div>
 
   {% if narrative %}
-  <div class="narrative">{{ narrative }}</div>
+  <div class="narrative">{{ narrative | e }}</div>
   {% endif %}
 
   <div class="chart-section">
