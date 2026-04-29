@@ -24,6 +24,7 @@ class Retriever:
         self._store = store
         self._embedder = embedder
         self._cfg = cfg
+        self._corpus_ready: bool | None = None
 
     def retrieve(
         self,
@@ -48,6 +49,12 @@ class Retriever:
         effective_k = k if k is not None else self._cfg.rag.top_k
         threshold = min_similarity if min_similarity is not None else self._cfg.rag.min_similarity
 
+        if self._corpus_ready is None:
+            try:
+                self._corpus_ready = int(self._store.count()) > 0
+            except (TypeError, ValueError):
+                self._corpus_ready = True
+
         query_embedding = self._embedder.embed_query(query)
 
         filters = {"doc_type": doc_type} if doc_type else None
@@ -62,3 +69,7 @@ class Retriever:
             )
 
         return filtered
+
+    def invalidate_corpus_cache(self) -> None:
+        """Reset the cached corpus-ready flag so the next retrieve() re-checks count."""
+        self._corpus_ready = None

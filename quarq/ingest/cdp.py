@@ -75,11 +75,6 @@ class CDPProvider(BaseProvider):
             ProviderError: If download fails, the endpoint is unavailable, or
                 no data is found for the requested series_id.
         """
-        if series_id not in _KNOWN_SERIES and not isinstance(series_id, str):
-            raise ProviderError(
-                f"CDP series_id must be 'CDP_SCORES' or a company name, got: {series_id!r}"
-            )
-
         key = cache.make_key(self.name, series_id, start, end)
         cached = cache.get(key)
         if cached is not None:
