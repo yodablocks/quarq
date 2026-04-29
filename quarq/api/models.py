@@ -16,6 +16,7 @@ class PortfolioRequest(BaseModel):
     end: date
     benchmark: str = "^FCHI"
     currency: str = "EUR"
+    include_narrative: bool = False
 
     @model_validator(mode="after")
     def weights_sum_to_one(self) -> "PortfolioRequest":
@@ -80,16 +81,17 @@ class MetricsResponse(BaseModel):
     weights: list[float]
     start: date
     end: date
-    benchmark: str
-    sharpe_ratio: float | None
-    max_drawdown: float | None
-    cagr: float | None
-    volatility: float | None
-    var_95: float | None
-    beta: float | None
-    alpha: float | None
-    risk_free_rate: float
-    computation_time_ms: int
+    benchmark: str = ""
+    sharpe_ratio: float | None = None
+    max_drawdown: float | None = None
+    cagr: float | None = None
+    volatility: float | None = None
+    var_95: float | None = None
+    beta: float | None = None
+    alpha: float | None = None
+    risk_free_rate: float = 0.0
+    computation_time_ms: int = 0
+    narrative: str | None = None
 
 
 class RAGQueryResponse(BaseModel):

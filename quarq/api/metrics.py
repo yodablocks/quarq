@@ -5,10 +5,14 @@ No external finance libraries. All inputs are price DataFrames from EquityProvid
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import pandas as pd
 
 from quarq.exceptions import ProviderError
+
+logger = logging.getLogger(__name__)
 
 
 def compute_portfolio_returns(
@@ -172,3 +176,39 @@ def alpha(
     p_mean = portfolio_returns.mean() * 252
     b_mean = benchmark_returns.mean() * 252
     return float(p_mean - (risk_free_rate + beta_val * (b_mean - risk_free_rate)))
+
+
+def generate_narrative(metrics: "MetricsResponse", cfg: "QuarqConfig") -> str:  # type: ignore[name-defined]
+    """Generate a 3-sentence institutional narrative for the portfolio report.
+
+    Args:
+        metrics: Computed MetricsResponse with all metric fields populated.
+        cfg: Loaded QuarqConfig (used to select the reporting LLM).
+
+    Returns:
+        Narrative string, or empty string if the LLM is unavailable.
+    """
+    from quarq.llm.lmstudio import get_llm
+
+    def _fmt_pct(v: float | None) -> str:
+        return f"{v:.1%}" if v is not None else "N/A"
+
+    def _fmt_f2(v: float | None) -> str:
+        return f"{v:.2f}" if v is not None else "N/A"
+
+    prompt = (
+        "Write exactly 3 sentences of institutional-grade portfolio commentary. "
+        "No headers. No bullet points. Use this data: "
+        f"CAGR={_fmt_pct(metrics.cagr)}, "
+        f"Sharpe={_fmt_f2(metrics.sharpe_ratio)}, "
+        f"Max Drawdown={_fmt_pct(metrics.max_drawdown)}, "
+        f"Volatility={_fmt_pct(metrics.volatility)}, "
+        f"Beta={_fmt_f2(metrics.beta)}, "
+        f"Alpha={_fmt_pct(metrics.alpha)}."
+    )
+    try:
+        llm = get_llm(cfg, agent="reporting")
+        return str(llm.generate(prompt))
+    except Exception as exc:
+        logger.warning("generate_narrative failed: %s", exc)
+        return ""
