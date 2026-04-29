@@ -7,6 +7,7 @@ is bounded by the shortest timeout that still catches real failures.
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -15,6 +16,8 @@ import httpx
 from quarq import __version__
 from quarq.config import QuarqConfig, get_config_path
 from quarq.constants import RAG_COLLECTION_NAME
+
+logger = logging.getLogger(__name__)
 
 _FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
 _ECB_URL = "https://data-api.ecb.europa.eu/service/data/ILM/W.U2.EUR.AF.B01.A"
@@ -124,10 +127,10 @@ def _check_corpus(cfg: QuarqConfig) -> tuple[int, int]:
                 results = col.get(include=["metadatas"])
                 sources = {m.get("source", "") for m in (results.get("metadatas") or []) if m}
                 return len(sources), chunk_count
-        except Exception:
-            pass
-    except Exception:
-        pass
+        except Exception as exc:
+            logger.warning("_check_corpus: collection query failed: %s", exc)
+    except Exception as exc:
+        logger.warning("_check_corpus: ChromaDB init failed: %s", exc)
     return 0, 0
 
 

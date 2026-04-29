@@ -163,7 +163,8 @@ class VectorStore:
         """
         try:
             return self._collection.count()
-        except Exception:
+        except Exception as exc:
+            logger.warning("VectorStore.count failed: %s", exc)
             return 0
 
     def count_sources(self) -> int:
@@ -176,5 +177,6 @@ class VectorStore:
             results = self._collection.get(include=["metadatas"])
             sources = {m.get("source") for m in results["metadatas"] if m.get("source")}
             return len(sources)
-        except Exception:
+        except Exception as exc:
+            logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0

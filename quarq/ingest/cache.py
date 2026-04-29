@@ -55,8 +55,8 @@ def get(key: str) -> pd.DataFrame | None:
             logger.debug("Cache expired for key %s", key)
             return None
         return entry["data"]
-    except Exception:
-        logger.warning("Cache read failed for key %s; treating as miss", key)
+    except Exception as exc:
+        logger.warning("Cache read failed for key %s: %s", key, exc)
         return None
 
 
