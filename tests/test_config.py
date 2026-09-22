@@ -63,3 +63,54 @@ def test_get_config_path_returns_path() -> None:
     assert isinstance(path, Path)
     assert path.name == "config.toml"
     assert path.parent.name == ".quarq"
+
+
+def test_env_var_overrides_fred_api_key(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """FRED_API_KEY in the environment wins over the value stored on disk."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "ON_DISK_KEY"
+    save_config(cfg)
+
+    monkeypatch.setenv("FRED_API_KEY", "FROM_ENV_KEY")
+    assert load_config().data.fred_api_key == "FROM_ENV_KEY"
+
+
+def test_env_var_secret_is_not_persisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A secret supplied via the environment is never written to config.toml."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.setenv("FRED_API_KEY", "SUPER_SECRET")
+
+    cfg = load_config()
+
+    assert cfg.data.fred_api_key == "SUPER_SECRET"
+    assert "SUPER_SECRET" not in config_file.read_text()
+
+
+def test_no_env_var_leaves_disk_value_intact(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without FRED_API_KEY set, the on-disk value is used unchanged."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "ON_DISK_KEY"
+    save_config(cfg)
+
+    assert load_config().data.fred_api_key == "ON_DISK_KEY"
+
+
+def test_empty_env_var_does_not_clobber_disk_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """An empty FRED_API_KEY is ignored rather than blanking the stored key."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.setenv("FRED_API_KEY", "")
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "ON_DISK_KEY"
+    save_config(cfg)
+
+    assert load_config().data.fred_api_key == "ON_DISK_KEY"

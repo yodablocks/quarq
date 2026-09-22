@@ -6,6 +6,7 @@ Creates the file with defaults on first run if missing.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 from typing import Annotated
@@ -94,6 +95,24 @@ def get_config_path() -> Path:
     return Path.home() / ".quarq" / "config.toml"
 
 
+def _apply_env_overrides(config: QuarqConfig) -> QuarqConfig:
+    """Overlay secrets from the environment onto a loaded config.
+
+    Applied after load and save so environment-supplied secrets are used at
+    runtime but never persisted to ~/.quarq/config.toml.
+
+    Args:
+        config: The config parsed from disk (or freshly defaulted).
+
+    Returns:
+        The same instance, with environment overrides applied in place.
+    """
+    fred_key = os.environ.get("FRED_API_KEY")
+    if fred_key:
+        config.data.fred_api_key = fred_key
+    return config
+
+
 def load_config() -> QuarqConfig:
     """Load config from disk, creating with defaults if not found.
 
@@ -101,7 +120,8 @@ def load_config() -> QuarqConfig:
         None
 
     Returns:
-        Parsed QuarqConfig with all sections populated.
+        Parsed QuarqConfig with all sections populated, with any environment
+        secrets (FRED_API_KEY) overlaid on top.
 
     Raises:
         ConfigError: If the file exists but cannot be parsed.
@@ -110,13 +130,14 @@ def load_config() -> QuarqConfig:
     if not path.exists():
         cfg = QuarqConfig()
         save_config(cfg)
-        return cfg
+        return _apply_env_overrides(cfg)
     try:
         with path.open("rb") as f:
             data = tomllib.load(f)
-        return QuarqConfig.model_validate(data)
+        cfg = QuarqConfig.model_validate(data)
     except Exception as exc:
         raise ConfigError(f"Failed to load config from {path}: {exc}") from exc
+    return _apply_env_overrides(cfg)
 
 
 def save_config(config: QuarqConfig) -> None:
