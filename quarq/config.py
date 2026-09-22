@@ -6,6 +6,7 @@ Creates the file with defaults on first run if missing.
 
 from __future__ import annotations
 
+import os
 import tomllib
 from pathlib import Path
 from typing import Annotated
@@ -94,6 +95,29 @@ def get_config_path() -> Path:
     return Path.home() / ".quarq" / "config.toml"
 
 
+# Config fields that may be supplied by an environment variable instead of
+# being stored on disk. Maps env var name -> (section, field).
+_ENV_SECRETS: dict[str, tuple[str, str]] = {
+    "FRED_API_KEY": ("data", "fred_api_key"),
+}
+
+
+def _apply_env_overrides(config: QuarqConfig) -> QuarqConfig:
+    """Overlay secrets from the environment onto a loaded config.
+
+    Args:
+        config: The config parsed from disk (or freshly defaulted).
+
+    Returns:
+        The same instance, with environment overrides applied in place.
+    """
+    for env_var, (section, field) in _ENV_SECRETS.items():
+        value = os.environ.get(env_var)
+        if value:
+            setattr(getattr(config, section), field, value)
+    return config
+
+
 def load_config() -> QuarqConfig:
     """Load config from disk, creating with defaults if not found.
 
@@ -101,7 +125,8 @@ def load_config() -> QuarqConfig:
         None
 
     Returns:
-        Parsed QuarqConfig with all sections populated.
+        Parsed QuarqConfig with all sections populated, with any environment
+        secrets (FRED_API_KEY) overlaid on top.
 
     Raises:
         ConfigError: If the file exists but cannot be parsed.
@@ -110,17 +135,22 @@ def load_config() -> QuarqConfig:
     if not path.exists():
         cfg = QuarqConfig()
         save_config(cfg)
-        return cfg
+        return _apply_env_overrides(cfg)
     try:
         with path.open("rb") as f:
             data = tomllib.load(f)
-        return QuarqConfig.model_validate(data)
+        cfg = QuarqConfig.model_validate(data)
     except Exception as exc:
         raise ConfigError(f"Failed to load config from {path}: {exc}") from exc
+    return _apply_env_overrides(cfg)
 
 
 def save_config(config: QuarqConfig) -> None:
     """Write QuarqConfig back to ~/.quarq/config.toml.
+
+    Any field whose value came from an environment variable is blanked before
+    writing, so a load-mutate-save round trip never persists a secret that was
+    only ever supplied through the environment.
 
     Args:
         config: The QuarqConfig instance to persist.
@@ -135,6 +165,10 @@ def save_config(config: QuarqConfig) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = config.model_dump()
+        for env_var, (section, field) in _ENV_SECRETS.items():
+            value = os.environ.get(env_var)
+            if value and data.get(section, {}).get(field) == value:
+                data[section][field] = ""
         with path.open("wb") as f:
             tomli_w.dump(data, f)
     except Exception as exc:

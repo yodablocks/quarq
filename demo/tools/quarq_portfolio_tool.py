@@ -7,13 +7,19 @@ a structured summary. Optionally generates an HTML report file.
 quarq must be running: quarq serve (http://127.0.0.1:8000)
 """
 
-import httpx
+import os
 from datetime import date, timedelta
+
+import httpx
 
 
 class Tools:
     def __init__(self):
-        self.base_url = "http://host.docker.internal:8000"
+        # host.docker.internal resolves from inside the Open WebUI container.
+        # Override with QUARQ_API_URL when running on the host (e.g. smoke tests).
+        self.base_url = os.environ.get(
+            "QUARQ_API_URL", "http://host.docker.internal:8000"
+        )
 
     def analyse_portfolio(
         self,
@@ -63,18 +69,28 @@ class Tools:
             response.raise_for_status()
             m = response.json()
 
+            def _pct(key: str) -> str:
+                """Format a ratio as a percentage, or n/a when unavailable."""
+                value = m.get(key)
+                return f"{value * 100:.2f}%" if value is not None else "n/a"
+
+            def _num(key: str) -> str:
+                """Format a plain float, or n/a when unavailable."""
+                value = m.get(key)
+                return f"{value:.2f}" if value is not None else "n/a"
+
             lines = [
                 f"Portfolio: {', '.join(ticker_list)}",
                 f"Period: {start_date} to {end_date}",
                 f"Benchmark: {benchmark}",
                 "",
-                f"CAGR:          {m.get('cagr', 0)*100:.2f}%",
-                f"Sharpe:        {m.get('sharpe', 0):.2f}",
-                f"Max Drawdown:  {m.get('max_drawdown', 0)*100:.2f}%",
-                f"VaR 95 (daily):{m.get('var_95', 0)*100:.2f}%",
-                f"Volatility:    {m.get('volatility', 0)*100:.2f}%",
-                f"Beta:          {m.get('beta', 0):.2f}",
-                f"Alpha:         {m.get('alpha', 0)*100:.2f}%",
+                f"CAGR:          {_pct('cagr')}",
+                f"Sharpe:        {_num('sharpe_ratio')}",
+                f"Max Drawdown:  {_pct('max_drawdown')}",
+                f"VaR 95 (daily):{_pct('var_95')}",
+                f"Volatility:    {_pct('volatility')}",
+                f"Beta:          {_num('beta')}",
+                f"Alpha:         {_pct('alpha')}",
             ]
 
             narrative = m.get("narrative")
@@ -96,5 +112,7 @@ class Tools:
             )
         except ValueError as exc:
             return f"Invalid input: {exc}"
-        except Exception as exc:
+        # Broad catch is deliberate: Open WebUI renders whatever string the tool
+        # returns, so an escaping exception would surface as an opaque UI error.
+        except Exception as exc:  # noqa: BLE001
             return f"Portfolio analysis failed: {exc}"
