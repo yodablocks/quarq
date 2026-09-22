@@ -50,6 +50,10 @@ reports/
 *.report.pdf
 ~/.quarq/
 *.quarq.log
+
+# Open WebUI writes these into the cwd it is launched from
+.webui_secret_key
+webui.db
 docs/
 
 # Playwright
