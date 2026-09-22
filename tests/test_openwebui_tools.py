@@ -29,7 +29,11 @@ class _FakeResponse:
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
-            raise httpx.HTTPStatusError("error", request=None, response=None)  # type: ignore[arg-type]
+            request = httpx.Request("POST", "http://testserver/rag/query")
+            response = httpx.Response(self.status_code, request=request)
+            raise httpx.HTTPStatusError(
+                f"HTTP {self.status_code}", request=request, response=response
+            )
 
 
 @pytest.fixture
@@ -255,3 +259,34 @@ def test_portfolio_reports_server_down(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert "not running" in out
     assert "quarq serve" in out
+
+
+def test_rag_explains_empty_corpus_on_422(captured: dict[str, Any]) -> None:
+    """A 422 (empty corpus) yields actionable guidance, not a raw error.
+
+    An unindexed corpus is a realistic first-run state in Open WebUI.
+    """
+    captured["payload"] = {"detail": "RAG corpus is empty."}
+    captured["status"] = 422
+    out = RagTools().query_financial_documents("q")
+
+    assert "corpus is empty" in out.lower()
+    assert "quarq rag add" in out
+
+
+def test_rag_reports_other_http_errors(captured: dict[str, Any]) -> None:
+    """Non-422 HTTP errors still surface as a readable failure string."""
+    captured["payload"] = {"detail": "boom"}
+    captured["status"] = 500
+    out = RagTools().query_financial_documents("q")
+
+    assert "RAG query failed" in out
+
+
+def test_portfolio_reports_http_errors(captured: dict[str, Any]) -> None:
+    """A 503 from the metrics endpoint surfaces as a readable failure string."""
+    captured["payload"] = {"detail": "Equity data fetch failed"}
+    captured["status"] = 503
+    out = PortfolioTools().analyse_portfolio(tickers="MC.PA", weights="1.0")
+
+    assert "Portfolio analysis failed" in out

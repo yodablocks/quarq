@@ -58,5 +58,14 @@ class Tools:
                 "quarq server is not running. "
                 "Start it with: quarq serve"
             )
-        except Exception as exc:
+        except httpx.HTTPStatusError as exc:
+            if exc.response is not None and exc.response.status_code == 422:
+                return (
+                    "The RAG corpus is empty. Index documents first with: "
+                    "quarq rag add <path-to-pdfs>"
+                )
+            return f"RAG query failed: {exc}"
+        # Broad catch is deliberate: Open WebUI renders whatever string the tool
+        # returns, so an escaping exception would surface as an opaque UI error.
+        except Exception as exc:  # noqa: BLE001
             return f"RAG query failed: {exc}"

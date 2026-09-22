@@ -112,5 +112,7 @@ class Tools:
             )
         except ValueError as exc:
             return f"Invalid input: {exc}"
-        except Exception as exc:
+        # Broad catch is deliberate: Open WebUI renders whatever string the tool
+        # returns, so an escaping exception would surface as an opaque UI error.
+        except Exception as exc:  # noqa: BLE001
             return f"Portfolio analysis failed: {exc}"
