@@ -64,14 +64,17 @@ First tagged release. Everything below landed across phases 2 through 7.
 - The demo smoke test passed while reaching nothing: the tools return an error
   string on connection failure, and the only assertion was that the output was
   non-empty.
+- An empty RAG corpus (HTTP 422) surfaced in Open WebUI as an opaque
+  "RAG query failed" string instead of pointing at `quarq rag add`.
 - Jinja2 autoescaping broke Plotly script tags in rendered reports.
 - `quarq report --open` produced a relative `file://` URL.
 
 ### Security
 
-- `FRED_API_KEY` can now be supplied via the environment. The override is
-  applied after load and save, so an environment-supplied key is used at
-  runtime but never written to `~/.quarq/config.toml`.
+- `FRED_API_KEY` can now be supplied via the environment instead of being
+  stored in `~/.quarq/config.toml`. `save_config` strips any value that came
+  from the environment before writing, so a load-mutate-save round trip (as
+  performed by `quarq config --set-lmstudio-url`) cannot persist it.
 - Generated HTML reports are gitignored. They embed portfolio holdings and
   were previously untracked rather than ignored.
 

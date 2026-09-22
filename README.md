@@ -104,7 +104,7 @@ from the host instead, set `QUARQ_API_URL=http://127.0.0.1:8000`.
 ## Tests
 
 ```bash
-pytest tests/          # 93 tests, no network or server required
+pytest tests/          # 98 tests, no network or server required
 ```
 
 The Open WebUI tools are covered by mocked contract tests that validate
