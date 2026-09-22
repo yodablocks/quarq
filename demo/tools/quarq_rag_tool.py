@@ -7,12 +7,18 @@ and returns grounded answers with source citations.
 quarq must be running: quarq serve (http://127.0.0.1:8000)
 """
 
+import os
+
 import httpx
 
 
 class Tools:
     def __init__(self):
-        self.base_url = "http://host.docker.internal:8000"
+        # host.docker.internal resolves from inside the Open WebUI container.
+        # Override with QUARQ_API_URL when running on the host (e.g. smoke tests).
+        self.base_url = os.environ.get(
+            "QUARQ_API_URL", "http://host.docker.internal:8000"
+        )
 
     def query_financial_documents(self, question: str) -> str:
         """Query the quarq RAG corpus for answers grounded in institutional documents.
@@ -33,7 +39,7 @@ class Tools:
         try:
             response = httpx.post(
                 f"{self.base_url}/rag/query",
-                json={"question": question, "n_results": 5},
+                json={"question": question, "k": 5},
                 timeout=30.0,
             )
             response.raise_for_status()
