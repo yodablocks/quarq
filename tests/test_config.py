@@ -114,3 +114,40 @@ def test_empty_env_var_does_not_clobber_disk_value(tmp_path: Path, monkeypatch: 
     save_config(cfg)
 
     assert load_config().data.fred_api_key == "ON_DISK_KEY"
+
+
+def test_env_secret_not_written_on_roundtrip(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A load-mutate-save round trip does not persist an env-supplied secret.
+
+    Regression: 'quarq config --set-lmstudio-url' loads, mutates, and saves.
+    Because the env override was applied in place, that wrote FRED_API_KEY
+    into config.toml, which is exactly what the override exists to avoid.
+    """
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    save_config(QuarqConfig())
+
+    monkeypatch.setenv("FRED_API_KEY", "SUPER_SECRET")
+    cfg = load_config()
+    cfg.lmstudio.url = "http://10.0.0.1:1234/v1"
+    save_config(cfg)
+
+    assert "SUPER_SECRET" not in config_file.read_text()
+    assert load_config().lmstudio.url == "http://10.0.0.1:1234/v1"
+
+
+def test_save_preserves_distinct_on_disk_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stored key that differs from the env value is not blanked on save."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.setenv("FRED_API_KEY", "FROM_ENV")
+
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "DELIBERATELY_ON_DISK"
+    save_config(cfg)
+
+    assert "DELIBERATELY_ON_DISK" in config_file.read_text()

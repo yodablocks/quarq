@@ -95,11 +95,15 @@ def get_config_path() -> Path:
     return Path.home() / ".quarq" / "config.toml"
 
 
+# Config fields that may be supplied by an environment variable instead of
+# being stored on disk. Maps env var name -> (section, field).
+_ENV_SECRETS: dict[str, tuple[str, str]] = {
+    "FRED_API_KEY": ("data", "fred_api_key"),
+}
+
+
 def _apply_env_overrides(config: QuarqConfig) -> QuarqConfig:
     """Overlay secrets from the environment onto a loaded config.
-
-    Applied after load and save so environment-supplied secrets are used at
-    runtime but never persisted to ~/.quarq/config.toml.
 
     Args:
         config: The config parsed from disk (or freshly defaulted).
@@ -107,9 +111,10 @@ def _apply_env_overrides(config: QuarqConfig) -> QuarqConfig:
     Returns:
         The same instance, with environment overrides applied in place.
     """
-    fred_key = os.environ.get("FRED_API_KEY")
-    if fred_key:
-        config.data.fred_api_key = fred_key
+    for env_var, (section, field) in _ENV_SECRETS.items():
+        value = os.environ.get(env_var)
+        if value:
+            setattr(getattr(config, section), field, value)
     return config
 
 
@@ -143,6 +148,10 @@ def load_config() -> QuarqConfig:
 def save_config(config: QuarqConfig) -> None:
     """Write QuarqConfig back to ~/.quarq/config.toml.
 
+    Any field whose value came from an environment variable is blanked before
+    writing, so a load-mutate-save round trip never persists a secret that was
+    only ever supplied through the environment.
+
     Args:
         config: The QuarqConfig instance to persist.
 
@@ -156,6 +165,10 @@ def save_config(config: QuarqConfig) -> None:
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         data = config.model_dump()
+        for env_var, (section, field) in _ENV_SECRETS.items():
+            value = os.environ.get(env_var)
+            if value and data.get(section, {}).get(field) == value:
+                data[section][field] = ""
         with path.open("wb") as f:
             tomli_w.dump(data, f)
     except Exception as exc:
