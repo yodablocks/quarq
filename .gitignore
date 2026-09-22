@@ -43,6 +43,11 @@ htmlcov/
 
 # quarq specific
 CLAUDE.local.md
+# Generated reports (contain portfolio holdings -- never commit)
+reports/
+/report*.html
+/quarq_report_*.html
+*.report.pdf
 ~/.quarq/
 *.quarq.log
 docs/
