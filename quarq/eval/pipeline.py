@@ -5,10 +5,37 @@ from __future__ import annotations
 from pathlib import Path
 
 from quarq.config import QuarqConfig
-from quarq.constants import DEFAULT_K_VALUES
-from quarq.eval.dataset import load_gold
+from quarq.constants import DEFAULT_K_VALUES, EVAL_UNKNOWN_REFS_SHOWN
+from quarq.eval.dataset import GoldItem, Ref, load_gold, unknown_gold_refs
 from quarq.eval.reporter import report_paths, to_json, to_markdown
 from quarq.eval.runner import EvalResult, RetrieverLike, run_eval
+from quarq.exceptions import EvalError
+
+
+def _check_known_refs(gold: list[GoldItem], known_refs: set[Ref]) -> None:
+    """Raise EvalError if any gold ref is missing from known_refs.
+
+    Args:
+        gold: Loaded gold items to check.
+        known_refs: (source, page) pairs present in the corpus.
+
+    Raises:
+        EvalError: If any gold ref is not in known_refs.
+    """
+    unknown = unknown_gold_refs(gold, known_refs)
+    if not unknown:
+        return
+    shown = unknown[:EVAL_UNKNOWN_REFS_SHOWN]
+    rest = len(unknown) - len(shown)
+    lines = [f"{item_id}: {source} p{page}" for item_id, (source, page) in shown]
+    message = "Gold refs missing from the corpus: " + "; ".join(lines)
+    if rest:
+        message += f"; and {rest} more"
+    message += (
+        ". Gold pages must use the PDF viewer's page index (1 = first physical page), "
+        "not the printed page number."
+    )
+    raise EvalError(message)
 
 
 def evaluate(
@@ -20,6 +47,7 @@ def evaluate(
     corpus_chunk_count: int,
     k_values: tuple[int, ...] = DEFAULT_K_VALUES,
     use_doc_type_filter: bool = False,
+    known_refs: set[Ref] | None = None,
 ) -> tuple[EvalResult, Path, Path]:
     """Run one full evaluation and write its JSON and Markdown reports.
 
@@ -31,15 +59,20 @@ def evaluate(
         corpus_chunk_count: Chunks in the collection at run time.
         k_values: Cut-offs to report.
         use_doc_type_filter: Restrict each retrieval to the item's doc_type.
+        known_refs: When given, every gold (source, page) ref must be in this
+            set, or evaluation is refused before any retrieval or report write.
 
     Returns:
         (result, json_path, markdown_path).
 
     Raises:
-        EvalError: On an invalid gold set or an existing report path.
+        EvalError: On an invalid gold set, a gold ref missing from known_refs,
+            or an existing report path.
         RAGError: Propagated from the retriever.
     """
     gold = load_gold(dataset_path)
+    if known_refs is not None:
+        _check_known_refs(gold, known_refs)
     result = run_eval(
         retriever,
         gold,

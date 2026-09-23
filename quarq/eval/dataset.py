@@ -118,6 +118,25 @@ def load_gold(path: Path, require_accepted: bool = True) -> list[GoldItem]:
     return items
 
 
+def unknown_gold_refs(gold: list[GoldItem], known: set[Ref]) -> list[tuple[str, Ref]]:
+    """Find gold references that do not exist in the indexed corpus.
+
+    Args:
+        gold: Gold items to check, in file order.
+        known: (source, page) pairs present in the corpus.
+
+    Returns:
+        (item.id, ref) for every gold ref not in known, in gold-file order.
+    """
+    result: list[tuple[str, Ref]] = []
+    for item in gold:
+        for ref in item.gold:
+            key = ref.key()
+            if key not in known:
+                result.append((item.id, key))
+    return result
+
+
 def write_gold(items: list[GoldItem], path: Path) -> None:
     """Write gold items as JSONL, refusing to overwrite an existing file.
 

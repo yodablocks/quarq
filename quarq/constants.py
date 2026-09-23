@@ -12,3 +12,6 @@ EVAL_MIN_CHUNK_CHARS: int = 200
 # retrieved refs to show per question.
 EVAL_REPORT_WORST_N: int = 5
 EVAL_REPORT_REFS_SHOWN: int = 3
+
+# quarq eval: how many unknown gold refs to list by name before summarizing the rest.
+EVAL_UNKNOWN_REFS_SHOWN: int = 10

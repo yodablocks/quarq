@@ -550,6 +550,7 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
         retriever = Retriever(
             store=store, embedder=Embedder(model_name=cfg.embedder.model), cfg=cfg
         )
+        known_refs = {(c.source, int(c.page)) for c in store.list_chunks()}
         dataset_path = Path(dataset) if dataset else default_dataset_path()
         with console.status("[bold cyan]Running retrieval eval...", spinner="dots"):
             result, json_path, md_path = evaluate(
@@ -560,6 +561,7 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
                 corpus_chunk_count=chunk_count,
                 k_values=parse_k_values(k),
                 use_doc_type_filter=doc_type_filter,
+                known_refs=known_refs,
             )
     except (EvalError, RAGError) as exc:
         console.print(Panel(f"[red]{exc}[/red]", title="Eval failed", border_style="red"))
@@ -621,7 +623,9 @@ def _cmd_eval_gen(per_doc_type: int, seed: int, out: str) -> int:
             "These are NOT gold yet. For each row: open the PDF page, fix or delete the "
             "question, add any other correct pages, write a note, and set provenance to "
             "'synthetic-draft+human-accept'. Then copy accepted rows into "
-            "quarq/eval/datasets/quarq_gold_v1.jsonl.",
+            "quarq/eval/datasets/quarq_gold_v1.jsonl.\n"
+            "Use the PDF viewer's page index (1 = first physical page), not the printed "
+            "page number.",
             title="Drafts ready for review",
             border_style="green",
         )

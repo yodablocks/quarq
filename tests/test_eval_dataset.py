@@ -13,6 +13,7 @@ from quarq.eval.dataset import (
     GoldRef,
     default_dataset_path,
     load_gold,
+    unknown_gold_refs,
     write_gold,
 )
 from quarq.exceptions import EvalError
@@ -146,6 +147,40 @@ def test_load_gold_wraps_directory_path(tmp_path: Path) -> None:
 
     with pytest.raises(EvalError, match="Cannot read gold set"):
         load_gold(directory)
+
+
+def test_unknown_gold_refs_returns_unknown_refs_in_gold_file_order() -> None:
+    items = [
+        GoldItem(
+            id="q1",
+            question="Q1?",
+            gold=[GoldRef(source="a.pdf", page=1), GoldRef(source="other.pdf", page=9)],
+            provenance="hand-written",
+        ),
+        GoldItem(
+            id="q2",
+            question="Q2?",
+            gold=[GoldRef(source="missing.pdf", page=2)],
+            provenance="hand-written",
+        ),
+    ]
+    known = {("a.pdf", 1)}
+
+    result = unknown_gold_refs(items, known)
+
+    assert result == [
+        ("q1", ("other.pdf", 9)),
+        ("q2", ("missing.pdf", 2)),
+    ]
+
+
+def test_unknown_gold_refs_returns_empty_when_all_known() -> None:
+    items = [
+        GoldItem(id="q1", question="Q1?", gold=[GoldRef(source="a.pdf", page=1)],
+                  provenance="hand-written"),
+    ]
+
+    assert unknown_gold_refs(items, {("a.pdf", 1)}) == []
 
 
 def test_load_gold_accepts_bom_prefixed_file(tmp_path: Path) -> None:
