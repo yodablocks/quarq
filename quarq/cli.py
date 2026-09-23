@@ -605,6 +605,11 @@ def _cmd_eval_gen(per_doc_type: int, seed: int, out: str) -> int:
             f"[bold cyan]Drafting {len(chunks)} questions...", spinner="dots"
         ):
             items, skipped = draft_items(chunks, llm)
+        if not items:
+            raise EvalError(
+                f"No drafts produced ({skipped} chunks skipped): the LLM returned "
+                "no usable questions. Nothing was written."
+            )
         write_gold(items, out_path)
     except (EvalError, RAGError) as exc:
         console.print(Panel(f"[red]{exc}[/red]", title="eval-gen failed", border_style="red"))

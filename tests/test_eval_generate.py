@@ -46,6 +46,7 @@ class _LLM:
         ("Question: What did the ECB flag?", "What did the ECB flag?"),
         ("This is not a question.", None),
         ("   \n  ", None),
+        ("<think>\nreasoning here\n</think>\nWhat rose in 2025?", "What rose in 2025?"),
     ],
 )
 def test_clean_question(raw: str, expected: str | None) -> None:
@@ -108,6 +109,20 @@ def test_cmd_eval_gen_writes_drafts_and_refuses_overwrite(
     assert {d.question for d in drafts} == {"A?", "B?"}
 
     assert cli._cmd_eval_gen(5, 7, str(out)) == 1  # existing file is never overwritten
+
+
+def test_cmd_eval_gen_fails_when_no_drafts_produced(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "load_config", lambda: QuarqConfig())
+    monkeypatch.setattr("quarq.rag.store.VectorStore", _Store)
+    monkeypatch.setattr(
+        "quarq.llm.get_llm", lambda cfg, agent="research": _LLM(["nope", "nope"])
+    )
+    out = tmp_path / "drafts.jsonl"
+
+    assert cli._cmd_eval_gen(5, 7, str(out)) == 1
+    assert not out.exists()
 
 
 def test_cmd_eval_gen_rejects_non_positive_per_doc_type(

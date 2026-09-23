@@ -22,6 +22,7 @@ QUESTION_SYSTEM = (
 )
 
 _PREFIX = re.compile(r"^\s*(?:\d+[.)]\s*|q(?:uestion)?\s*[:.-]\s*)", re.IGNORECASE)
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL)
 
 
 class LLMLike(Protocol):
@@ -56,6 +57,7 @@ def clean_question(raw: str) -> str | None:
     Returns:
         The question, or None if the reply holds no question.
     """
+    raw = _THINK_BLOCK.sub("", raw)
     for line in raw.splitlines():
         text = _PREFIX.sub("", line.strip()).strip().strip("\"'").strip()
         if text:
