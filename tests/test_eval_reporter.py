@@ -69,6 +69,12 @@ def test_to_markdown_has_config_results_and_worst_questions(tmp_path: Path) -> N
     assert "Bad \\| question?" in worst  # pipes escaped so the table survives
 
 
+def test_to_json_wraps_oserror_from_out_path_component_being_a_file(tmp_path: Path) -> None:
+    (tmp_path / "afile").write_text("x", encoding="utf-8")
+    with pytest.raises(EvalError, match="Cannot write report"):
+        to_json(_result(), tmp_path / "afile" / "r.json")
+
+
 def test_render_table_mentions_every_k_and_mrr() -> None:
     console = Console(record=True, width=120)
     console.print(render_table(_result()))

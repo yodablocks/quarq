@@ -75,16 +75,21 @@ def load_gold(path: Path, require_accepted: bool = True) -> list[GoldItem]:
         Gold items in file order.
 
     Raises:
-        EvalError: If the file is missing, a row is invalid, an id repeats,
-            a draft is present while require_accepted is True, or the file
-            holds no items.
+        EvalError: If the file is missing, cannot be read, or cannot be
+            decoded, if a row is invalid, an id repeats, a draft is present
+            while require_accepted is True, or the file holds no items.
     """
     if not path.exists():
         raise EvalError(f"Gold set not found: {path}")
 
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except (OSError, UnicodeDecodeError) as exc:
+        raise EvalError(f"Cannot read gold set {path}: {exc}") from exc
+
     items: list[GoldItem] = []
     seen: set[str] = set()
-    for lineno, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for lineno, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
         try:

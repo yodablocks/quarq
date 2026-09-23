@@ -88,11 +88,16 @@ def to_json(result: EvalResult, path: Path) -> Path:
         The path written.
 
     Raises:
-        EvalError: If the path already exists.
+        EvalError: If the path already exists or cannot be written.
     """
     _refuse_overwrite(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(asdict(result), indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+    except OSError as exc:
+        raise EvalError(f"Cannot write report {path}: {exc}") from exc
     return path
 
 
@@ -117,7 +122,7 @@ def to_markdown(result: EvalResult, path: Path, worst_n: int = EVAL_REPORT_WORST
         The path written.
 
     Raises:
-        EvalError: If the path already exists.
+        EvalError: If the path already exists or cannot be written.
     """
     _refuse_overwrite(path)
     max_k = max(result.k_values)
@@ -162,6 +167,9 @@ def to_markdown(result: EvalResult, path: Path, worst_n: int = EVAL_REPORT_WORST
             f"| {q.id} | {_md_cell(q.question)} | {q.metrics[f'recall@{max_k}']:.3f} "
             f"| {_md_cell(_refs(q.gold))} | {top_retrieved} |"
         )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    except OSError as exc:
+        raise EvalError(f"Cannot write report {path}: {exc}") from exc
     return path

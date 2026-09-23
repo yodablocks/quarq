@@ -128,3 +128,31 @@ def test_load_gold_rejects_unknown_keys(tmp_path: Path) -> None:
 
     with pytest.raises(EvalError, match=r"gold\.jsonl:1"):
         load_gold(path)
+
+
+def test_load_gold_wraps_decode_errors(tmp_path: Path) -> None:
+    path = tmp_path / "gold.jsonl"
+    row = json.loads(_row(question="Quelle priorité a été identifiée ?"))
+    text = json.dumps(row, ensure_ascii=False)
+    path.write_bytes(text.encode("latin-1"))
+
+    with pytest.raises(EvalError, match="Cannot read gold set"):
+        load_gold(path)
+
+
+def test_load_gold_wraps_directory_path(tmp_path: Path) -> None:
+    directory = tmp_path / "a_directory.jsonl"
+    directory.mkdir()
+
+    with pytest.raises(EvalError, match="Cannot read gold set"):
+        load_gold(directory)
+
+
+def test_load_gold_accepts_bom_prefixed_file(tmp_path: Path) -> None:
+    path = tmp_path / "gold.jsonl"
+    row = _row()
+    path.write_bytes(b"\xef\xbb\xbf" + row.encode("utf-8"))
+
+    items = load_gold(path)
+
+    assert [i.id for i in items] == ["q001"]
