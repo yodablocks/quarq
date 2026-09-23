@@ -110,6 +110,19 @@ def test_cmd_eval_gen_writes_drafts_and_refuses_overwrite(
     assert cli._cmd_eval_gen(5, 7, str(out)) == 1  # existing file is never overwritten
 
 
+def test_cmd_eval_gen_rejects_non_positive_per_doc_type(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cli, "load_config", lambda: QuarqConfig())
+    monkeypatch.setattr("quarq.rag.store.VectorStore", _Store)
+    monkeypatch.setattr("quarq.llm.get_llm", lambda cfg, agent="research": _LLM(["A?", "B?"]))
+    out = tmp_path / "drafts.jsonl"
+
+    assert cli._cmd_eval_gen(0, 7, str(out)) == 1
+    assert cli._cmd_eval_gen(-1, 7, str(out)) == 1
+    assert not out.exists()
+
+
 def test_main_dispatches_eval_gen_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, object] = {}
 

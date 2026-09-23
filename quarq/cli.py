@@ -592,6 +592,8 @@ def _cmd_eval_gen(per_doc_type: int, seed: int, out: str) -> int:
     out_path = Path(out)
     cfg = load_config()
     try:
+        if per_doc_type < 1:
+            raise EvalError(f"--per-doc-type must be >= 1, got {per_doc_type}")
         if out_path.exists():
             raise EvalError(f"Refusing to overwrite {out_path}: choose a new --out path")
         store = VectorStore(cfg)
