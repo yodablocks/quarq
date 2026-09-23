@@ -33,3 +33,41 @@ def _isolate_env(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     for name in (*_ENV_SECRETS, *_OTHER_ENV_VARS):
         monkeypatch.delenv(name, raising=False)
+
+
+class FakeRetriever:
+    """Scripted stand-in for quarq.rag.retriever.Retriever used by the eval tests."""
+
+    def __init__(self, scripted: dict[str, list[tuple[str, int]]]) -> None:
+        self.scripted = scripted
+        self.calls: list[dict[str, object]] = []
+
+    def retrieve(
+        self,
+        query: str,
+        k: int | None = None,
+        doc_type: str | None = None,
+        min_similarity: float | None = None,
+    ) -> list:
+        from quarq.rag.store import RetrievedChunk
+
+        self.calls.append(
+            {"query": query, "k": k, "doc_type": doc_type, "min_similarity": min_similarity}
+        )
+        refs = self.scripted.get(query, [])[: k or 5]
+        return [
+            RetrievedChunk(
+                content=f"chunk from {source} p{page}",
+                metadata={"source": source, "page": page},
+                similarity=0.9,
+                source=source,
+                page=page,
+            )
+            for source, page in refs
+        ]
+
+
+@pytest.fixture
+def fake_retriever_cls() -> type[FakeRetriever]:
+    """Return the FakeRetriever class so tests can script their own outputs."""
+    return FakeRetriever
