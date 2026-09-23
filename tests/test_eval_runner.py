@@ -81,6 +81,7 @@ def test_run_eval_records_per_question_detail_and_snapshot(fake_retriever_cls) -
     assert result.corpus_chunk_count == 3333
     assert result.dataset_name == "gold_v1"
     assert result.generated_at.endswith("+00:00")
+    assert result.provenance_counts == {"hand-written": 2}
 
 
 def test_parse_k_values_sorts_dedupes_and_validates() -> None:

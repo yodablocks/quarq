@@ -31,6 +31,10 @@ def _refs(refs: list[tuple[str, int]]) -> str:
     return ", ".join(f"{source} p{page}" for source, page in refs) or "(none)"
 
 
+def _provenance_summary(provenance_counts: dict[str, int]) -> str:
+    return ", ".join(f"{prov} ({n})" for prov, n in provenance_counts.items())
+
+
 def render_table(result: EvalResult) -> Table:
     """Build a rich table of aggregate metrics per k.
 
@@ -133,7 +137,8 @@ def to_markdown(result: EvalResult, path: Path, worst_n: int = EVAL_REPORT_WORST
         f"Generated: {result.generated_at}  ",
         f"Questions: {result.n_questions}  ",
         f"Corpus chunks: {result.corpus_chunk_count}  ",
-        f"doc_type filter: {filt}",
+        f"doc_type filter: {filt}  ",
+        f"Provenance: {_provenance_summary(result.provenance_counts)}",
         "",
         "## Config",
         "",

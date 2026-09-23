@@ -26,6 +26,7 @@ def _result() -> EvalResult:
     )
     return EvalResult(
         dataset_name="quarq_gold_v1", n_questions=2, k_values=[1], use_doc_type_filter=False,
+        provenance_counts={"hand-written": 2},
         config_snapshot={"min_similarity": 0.35, "chunk_size": 512},
         aggregate={"precision@1": 0.5, "recall@1": 0.5, "hit@1": 0.5, "mrr": 0.5},
         per_question=[good, bad], corpus_chunk_count=3333,
@@ -62,6 +63,7 @@ def test_to_markdown_has_config_results_and_worst_questions(tmp_path: Path) -> N
 
     assert "# quarq retrieval eval: quarq_gold_v1" in text
     assert "| min_similarity | 0.35 |" in text
+    assert "Provenance: hand-written (2)" in text
     assert "| 1 | 0.500 | 0.500 | 0.500 |" in text
     assert "MRR: 0.500" in text
     worst = text.split("## Worst questions")[1]

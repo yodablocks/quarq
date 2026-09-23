@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
@@ -47,6 +48,7 @@ class EvalResult:
     n_questions: int
     k_values: list[int]
     use_doc_type_filter: bool
+    provenance_counts: dict[str, int]
     config_snapshot: dict[str, object]
     aggregate: dict[str, float]
     per_question: list[PerQuestionResult]
@@ -166,12 +168,14 @@ def run_eval(
 
     keys = list(per_question[0].metrics)
     aggregate = {key: mean([q.metrics[key] for q in per_question]) for key in keys}
+    provenance_counts = dict(sorted(Counter(item.provenance for item in gold).items()))
 
     return EvalResult(
         dataset_name=dataset_name,
         n_questions=len(per_question),
         k_values=list(k_values),
         use_doc_type_filter=use_doc_type_filter,
+        provenance_counts=provenance_counts,
         config_snapshot=config_snapshot(cfg),
         aggregate=aggregate,
         per_question=per_question,
