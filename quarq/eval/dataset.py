@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from quarq.exceptions import EvalError
 
@@ -18,6 +18,8 @@ ACCEPTED_PROVENANCES: frozenset[str] = frozenset(
 
 class GoldRef(BaseModel):
     """One correct (source, page) location for a question."""
+
+    model_config = ConfigDict(extra="forbid")
 
     source: str
     page: int
@@ -34,12 +36,14 @@ class GoldRef(BaseModel):
 class GoldItem(BaseModel):
     """A question with every page that correctly answers it."""
 
+    model_config = ConfigDict(extra="forbid")
+
     id: str
     question: str = Field(min_length=1)
     gold: list[GoldRef] = Field(min_length=1)
     doc_type: str | None = None
     note: str = ""
-    provenance: str = "synthetic-draft+human-accept"
+    provenance: str
 
     def gold_keys(self) -> set[Ref]:
         """Return the gold locations as a set of (source, page) tuples.

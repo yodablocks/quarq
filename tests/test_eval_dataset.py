@@ -108,3 +108,23 @@ def test_default_dataset_path_points_at_packaged_v1() -> None:
     path = default_dataset_path()
     assert path.name == "quarq_gold_v1.jsonl"
     assert path.parent.name == "datasets"
+
+
+def test_load_gold_rejects_row_missing_provenance(tmp_path: Path) -> None:
+    path = tmp_path / "gold.jsonl"
+    row = json.loads(_row())
+    del row["provenance"]
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    with pytest.raises(EvalError, match=r"gold\.jsonl:1"):
+        load_gold(path)
+
+
+def test_load_gold_rejects_unknown_keys(tmp_path: Path) -> None:
+    path = tmp_path / "gold.jsonl"
+    row = json.loads(_row())
+    row["provenence"] = "x"
+    path.write_text(json.dumps(row) + "\n", encoding="utf-8")
+
+    with pytest.raises(EvalError, match=r"gold\.jsonl:1"):
+        load_gold(path)
