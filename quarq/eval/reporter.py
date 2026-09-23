@@ -4,16 +4,18 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 
 from rich.table import Table
 
+from quarq.constants import EVAL_REPORT_REFS_SHOWN, EVAL_REPORT_WORST_N
 from quarq.eval.runner import EvalResult, PerQuestionResult
 from quarq.exceptions import EvalError
 
 
 def _stamp(generated_at: str) -> str:
-    return generated_at.replace("-", "").replace(":", "")[:15]
+    return datetime.fromisoformat(generated_at).strftime("%Y%m%dT%H%M%S")
 
 
 def _refuse_overwrite(path: Path) -> None:
@@ -103,7 +105,7 @@ def _worst(result: EvalResult, worst_n: int) -> list[PerQuestionResult]:
     return ranked[:worst_n]
 
 
-def to_markdown(result: EvalResult, path: Path, worst_n: int = 5) -> Path:
+def to_markdown(result: EvalResult, path: Path, worst_n: int = EVAL_REPORT_WORST_N) -> Path:
     """Write a shareable Markdown report.
 
     Args:
@@ -155,9 +157,10 @@ def to_markdown(result: EvalResult, path: Path, worst_n: int = 5) -> Path:
         "|---|---|---|---|---|",
     ]
     for q in _worst(result, worst_n):
+        top_retrieved = _md_cell(_refs(q.retrieved[:EVAL_REPORT_REFS_SHOWN]))
         lines.append(
             f"| {q.id} | {_md_cell(q.question)} | {q.metrics[f'recall@{max_k}']:.3f} "
-            f"| {_md_cell(_refs(q.gold))} | {_md_cell(_refs(q.retrieved[:3]))} |"
+            f"| {_md_cell(_refs(q.gold))} | {top_retrieved} |"
         )
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
