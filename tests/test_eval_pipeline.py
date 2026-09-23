@@ -64,3 +64,21 @@ def test_evaluate_succeeds_when_gold_refs_are_known(tmp_path: Path, fake_retriev
 
     assert result.dataset_name == "gold_x"
     assert json_path.exists() and md_path.exists()
+
+
+def test_evaluate_refuses_unaccepted_drafts_end_to_end(
+    tmp_path: Path, fake_retriever_cls
+) -> None:
+    draft_row = {**ROW, "provenance": "synthetic-draft"}
+    dataset = tmp_path / "gold_x.jsonl"
+    dataset.write_text(json.dumps(draft_row) + "\n", encoding="utf-8")
+    retriever = fake_retriever_cls({"Q one?": [("a.pdf", 1)]})
+    out_dir = tmp_path / "reports"
+
+    with pytest.raises(EvalError, match="not human-accepted"):
+        evaluate(
+            retriever, QuarqConfig(), dataset_path=dataset, out_dir=out_dir,
+            corpus_chunk_count=7,
+        )
+
+    assert not out_dir.exists()
