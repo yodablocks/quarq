@@ -11,6 +11,7 @@ def test_load_config_creates_default_when_missing(tmp_path: Path, monkeypatch: p
     """load_config() creates ~/.quarq/config.toml with defaults when none exists."""
     config_file = tmp_path / ".quarq" / "config.toml"
     monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
 
     assert not config_file.exists()
     cfg = load_config()
@@ -44,6 +45,7 @@ def test_save_config_round_trips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     """save_config() writes and load_config() reads back the same values."""
     config_file = tmp_path / ".quarq" / "config.toml"
     monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    monkeypatch.delenv("FRED_API_KEY", raising=False)
 
     cfg = load_config()
     cfg.data.fred_api_key = "TEST_KEY_123"
