@@ -570,6 +570,58 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
     return 0
 
 
+def _cmd_eval_gen(per_doc_type: int, seed: int, out: str) -> int:
+    """Draft gold-set candidates with the research LLM for human review.
+
+    Args:
+        per_doc_type: Chunks to sample per doc_type.
+        seed: Sampling seed.
+        out: Destination JSONL for the drafts; never overwritten.
+
+    Returns:
+        0 on success, 1 on a handled failure.
+    """
+    from pathlib import Path
+
+    from quarq.eval.dataset import write_gold
+    from quarq.eval.generate import draft_items, sample_chunks
+    from quarq.exceptions import EvalError, RAGError
+    from quarq.llm import get_llm
+    from quarq.rag.store import VectorStore
+
+    out_path = Path(out)
+    cfg = load_config()
+    try:
+        if out_path.exists():
+            raise EvalError(f"Refusing to overwrite {out_path}: choose a new --out path")
+        store = VectorStore(cfg)
+        if store.count() == 0:
+            raise EvalError("RAG corpus is empty. Run: quarq rag add ./docs/")
+        llm = get_llm(cfg, agent="research")
+        chunks = sample_chunks(store.list_chunks(), per_doc_type=per_doc_type, seed=seed)
+        with console.status(
+            f"[bold cyan]Drafting {len(chunks)} questions...", spinner="dots"
+        ):
+            items, skipped = draft_items(chunks, llm)
+        write_gold(items, out_path)
+    except (EvalError, RAGError) as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="eval-gen failed", border_style="red"))
+        return 1
+
+    console.print(
+        Panel(
+            f"Wrote {len(items)} drafts to [bold]{out_path}[/bold] ({skipped} skipped).\n"
+            "These are NOT gold yet. For each row: open the PDF page, fix or delete the "
+            "question, add any other correct pages, write a note, and set provenance to "
+            "'synthetic-draft+human-accept'. Then copy accepted rows into "
+            "quarq/eval/datasets/quarq_gold_v1.jsonl.",
+            title="Drafts ready for review",
+            border_style="green",
+        )
+    )
+    return 0
+
+
 def main() -> None:
     """Entry point for the quarq CLI."""
     parser = argparse.ArgumentParser(
@@ -634,6 +686,18 @@ def main() -> None:
         help="Restrict each retrieval to the question's doc_type",
     )
 
+    # quarq eval-gen
+    eval_gen_parser = subparsers.add_parser(
+        "eval-gen", help="Draft gold-set questions with the LLM for human review"
+    )
+    eval_gen_parser.add_argument(
+        "--per-doc-type", type=int, default=20, help="Chunks to sample per doc_type"
+    )
+    eval_gen_parser.add_argument("--seed", type=int, default=7, help="Sampling seed")
+    eval_gen_parser.add_argument(
+        "--out", default="reports/eval_gen_drafts.jsonl", help="Draft JSONL (never overwritten)"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -667,6 +731,10 @@ def main() -> None:
             )
         elif args.command == "eval":
             code = _cmd_eval(args.dataset, args.k, args.out, args.doc_type_filter)
+            if code:
+                sys.exit(code)
+        elif args.command == "eval-gen":
+            code = _cmd_eval_gen(args.per_doc_type, args.seed, args.out)
             if code:
                 sys.exit(code)
         else:
