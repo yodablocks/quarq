@@ -116,7 +116,7 @@ def test_load_gold_rejects_row_missing_provenance(tmp_path: Path) -> None:
     del row["provenance"]
     path.write_text(json.dumps(row) + "\n", encoding="utf-8")
 
-    with pytest.raises(EvalError, match=r"gold\.jsonl:1"):
+    with pytest.raises(EvalError, match=r"gold\.jsonl:1.*provenance"):
         load_gold(path)
 
 

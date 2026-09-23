@@ -95,7 +95,12 @@ def load_gold(path: Path, require_accepted: bool = True) -> list[GoldItem]:
         try:
             item = GoldItem.model_validate_json(line)
         except ValidationError as exc:
-            reason = exc.errors()[0]["msg"]
+            err = exc.errors()[0]
+            loc = ".".join(str(p) for p in err["loc"])
+            if loc:
+                reason = f"{loc}: {err['msg']}"
+            else:
+                reason = err["msg"]
             raise EvalError(f"{path.name}:{lineno}: invalid gold row: {reason}") from exc
         if item.id in seen:
             raise EvalError(f"{path.name}:{lineno}: duplicate id {item.id!r}")
