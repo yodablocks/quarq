@@ -63,7 +63,7 @@ class FREDProvider(BaseProvider):
         Raises:
             ProviderError: If no API key, unknown series_id, or HTTP failure.
         """
-        if not self._cfg.data.fred_api_key:
+        if not self._cfg.data.fred_api_key.get_secret_value():
             logger.warning("FRED API key not set, cannot fetch %s", series_id)
             raise ProviderError("FRED API key required")
 
@@ -83,7 +83,7 @@ class FREDProvider(BaseProvider):
             "series_id": fred_id,
             "observation_start": start.isoformat(),
             "observation_end": end.isoformat(),
-            "api_key": self._cfg.data.fred_api_key,
+            "api_key": self._cfg.data.fred_api_key.get_secret_value(),
             "file_type": "json",
         }
         try:
@@ -131,7 +131,7 @@ def get_risk_free_rate(cfg: QuarqConfig) -> float:
         Latest OAT10Y rate (e.g. 0.032) or cfg.portfolio.risk_free_rate_fallback.
         Never raises.
     """
-    if not cfg.data.fred_api_key:
+    if not cfg.data.fred_api_key.get_secret_value():
         logger.warning(
             "FRED API key not set; using risk_free_rate_fallback=%.4f",
             cfg.portfolio.risk_free_rate_fallback,

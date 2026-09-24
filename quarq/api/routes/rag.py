@@ -169,9 +169,9 @@ def delete_corpus(
 
     cfg = request.app.state.config
 
-    if cfg.api.admin_key:
+    if cfg.api.admin_key.get_secret_value():
         provided = (x_admin_key or "").encode()
-        expected = cfg.api.admin_key.encode()
+        expected = cfg.api.admin_key.get_secret_value().encode()
         if not hmac.compare_digest(provided, expected):
             raise HTTPException(status_code=403, detail="Invalid admin key")
 
