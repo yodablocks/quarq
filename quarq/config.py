@@ -9,10 +9,10 @@ from __future__ import annotations
 import os
 import tomllib
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, cast
 
 import tomli_w
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from quarq.exceptions import ConfigError
 
@@ -45,7 +45,10 @@ class EmbedderConfig(BaseModel):
 class DataConfig(BaseModel):
     """Data provider configuration."""
 
-    fred_api_key: str = ""
+    # validate_assignment coerces plain strings assigned later into SecretStr.
+    model_config = ConfigDict(validate_assignment=True)
+
+    fred_api_key: SecretStr = SecretStr("")
     fred_enabled: bool = True
     ecb_enabled: bool = True
     oecd_enabled: bool = True
@@ -74,8 +77,10 @@ class PortfolioConfig(BaseModel):
 class APIConfig(BaseModel):
     """FastAPI server settings."""
 
+    model_config = ConfigDict(validate_assignment=True)
+
     cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
-    admin_key: str = ""
+    admin_key: SecretStr = SecretStr("")
 
 
 class QuarqConfig(BaseModel):
@@ -164,12 +169,30 @@ def _stored_value(path: Path, section: str, field: str) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _reveal_secrets(data: object) -> object:
+    """Replace SecretStr values in a model_dump() tree with their plain strings.
+
+    Args:
+        data: Output of model_dump(), or any nested part of it.
+
+    Returns:
+        The same structure with every SecretStr unwrapped, ready for TOML.
+    """
+    if isinstance(data, SecretStr):
+        return data.get_secret_value()
+    if isinstance(data, dict):
+        return {key: _reveal_secrets(value) for key, value in data.items()}
+    if isinstance(data, list):
+        return [_reveal_secrets(value) for value in data]
+    return data
+
+
 def save_config(config: QuarqConfig) -> None:
     """Write QuarqConfig back to ~/.quarq/config.toml.
 
-    Any field whose value came from an environment variable is blanked before
-    writing, so a load-mutate-save round trip never persists a secret that was
-    only ever supplied through the environment.
+    Any field whose value came from an environment variable is replaced by the
+    value already on disk before writing, so a load-mutate-save round trip never
+    persists a secret that was only ever supplied through the environment.
 
     Args:
         config: The QuarqConfig instance to persist.
@@ -183,7 +206,7 @@ def save_config(config: QuarqConfig) -> None:
     path = get_config_path()
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
-        data = config.model_dump()
+        data = cast(dict[str, Any], _reveal_secrets(config.model_dump()))
         for env_var, (section, field) in _ENV_SECRETS.items():
             value = os.environ.get(env_var)
             if value and data.get(section, {}).get(field) == value:

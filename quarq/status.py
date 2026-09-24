@@ -72,7 +72,7 @@ async def _check_fred(cfg: QuarqConfig, client: httpx.AsyncClient) -> str:
     Returns:
         "connected" | "no key" | "offline"
     """
-    if not cfg.data.fred_api_key:
+    if not cfg.data.fred_api_key.get_secret_value():
         return "no key"
     try:
         resp = await client.get(_FRED_URL, timeout=_TIMEOUT)

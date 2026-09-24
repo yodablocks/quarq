@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import SecretStr
 
 from quarq.config import QuarqConfig, get_config_path, load_config, save_config
 
@@ -27,7 +28,7 @@ def test_load_config_creates_default_when_missing(tmp_path: Path, monkeypatch: p
     assert cfg.llm.fallback_model == "claude-sonnet-4-20250514"
     assert cfg.embedder.backend == "local"
     assert cfg.embedder.model == "intfloat/multilingual-e5-large"
-    assert cfg.data.fred_api_key == ""
+    assert cfg.data.fred_api_key.get_secret_value() == ""
     assert cfg.data.fred_enabled is True
     assert cfg.data.ecb_enabled is True
     assert cfg.data.oecd_enabled is True
@@ -54,7 +55,7 @@ def test_save_config_round_trips(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     save_config(cfg)
 
     cfg2 = load_config()
-    assert cfg2.data.fred_api_key == "TEST_KEY_123"
+    assert cfg2.data.fred_api_key.get_secret_value() == "TEST_KEY_123"
     assert cfg2.rag.top_k == 10
     assert cfg2.portfolio.risk_free_rate_fallback == 0.05
 
@@ -77,7 +78,7 @@ def test_env_var_overrides_fred_api_key(tmp_path: Path, monkeypatch: pytest.Monk
     save_config(cfg)
 
     monkeypatch.setenv("FRED_API_KEY", "FROM_ENV_KEY")
-    assert load_config().data.fred_api_key == "FROM_ENV_KEY"
+    assert load_config().data.fred_api_key.get_secret_value() == "FROM_ENV_KEY"
 
 
 def test_env_var_secret_is_not_persisted(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -88,7 +89,7 @@ def test_env_var_secret_is_not_persisted(tmp_path: Path, monkeypatch: pytest.Mon
 
     cfg = load_config()
 
-    assert cfg.data.fred_api_key == "SUPER_SECRET"
+    assert cfg.data.fred_api_key.get_secret_value() == "SUPER_SECRET"
     assert "SUPER_SECRET" not in config_file.read_text()
 
 
@@ -102,7 +103,7 @@ def test_no_env_var_leaves_disk_value_intact(tmp_path: Path, monkeypatch: pytest
     cfg.data.fred_api_key = "ON_DISK_KEY"
     save_config(cfg)
 
-    assert load_config().data.fred_api_key == "ON_DISK_KEY"
+    assert load_config().data.fred_api_key.get_secret_value() == "ON_DISK_KEY"
 
 
 def test_empty_env_var_does_not_clobber_disk_value(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -115,7 +116,7 @@ def test_empty_env_var_does_not_clobber_disk_value(tmp_path: Path, monkeypatch: 
     cfg.data.fred_api_key = "ON_DISK_KEY"
     save_config(cfg)
 
-    assert load_config().data.fred_api_key == "ON_DISK_KEY"
+    assert load_config().data.fred_api_key.get_secret_value() == "ON_DISK_KEY"
 
 
 def test_env_secret_not_written_on_roundtrip(
@@ -179,5 +180,41 @@ def test_roundtrip_keeps_on_disk_key_when_env_differs(
     assert "FROM_ENV" not in text
     monkeypatch.delenv("FRED_API_KEY")
     reloaded = load_config()
-    assert reloaded.data.fred_api_key == "ON_DISK_KEY"
+    assert reloaded.data.fred_api_key.get_secret_value() == "ON_DISK_KEY"
     assert reloaded.lmstudio.url == "http://10.0.0.1:1234/v1"
+
+
+def test_secrets_hidden_from_repr_and_str() -> None:
+    """Secrets never appear when the config is printed, logged, or put in an error."""
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "FRED_SECRET_VALUE"
+    cfg.api.admin_key = "ADMIN_SECRET_VALUE"
+
+    for text in (repr(cfg), str(cfg), f"{cfg}", repr(cfg.data), repr(cfg.api)):
+        assert "FRED_SECRET_VALUE" not in text
+        assert "ADMIN_SECRET_VALUE" not in text
+
+
+def test_secret_assignment_is_coerced() -> None:
+    """Assigning a plain string still yields a masked secret."""
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "PLAIN"
+    assert isinstance(cfg.data.fred_api_key, SecretStr)
+    assert cfg.data.fred_api_key.get_secret_value() == "PLAIN"
+
+
+def test_save_writes_real_secret_not_mask(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """save_config writes the actual stored secret, never the '*****' mask."""
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    cfg = QuarqConfig()
+    cfg.data.fred_api_key = "ON_DISK_KEY"
+    cfg.api.admin_key = "ADMIN_KEY"
+    save_config(cfg)
+
+    text = config_file.read_text()
+    assert "ON_DISK_KEY" in text
+    assert "ADMIN_KEY" in text
+    assert "*" not in text
