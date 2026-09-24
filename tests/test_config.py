@@ -153,3 +153,31 @@ def test_save_preserves_distinct_on_disk_key(
     save_config(cfg)
 
     assert "DELIBERATELY_ON_DISK" in config_file.read_text()
+
+
+def test_roundtrip_keeps_on_disk_key_when_env_differs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A load-mutate-save round trip keeps the stored key, not a blank.
+
+    Regression: with FRED_API_KEY exported and a different key on disk,
+    'quarq config --set-lmstudio-url' replaced the stored key with "",
+    silently deleting it.
+    """
+    config_file = tmp_path / ".quarq" / "config.toml"
+    monkeypatch.setattr("quarq.config.get_config_path", lambda: config_file)
+    stored = QuarqConfig()
+    stored.data.fred_api_key = "ON_DISK_KEY"
+    save_config(stored)
+
+    monkeypatch.setenv("FRED_API_KEY", "FROM_ENV")
+    cfg = load_config()
+    cfg.lmstudio.url = "http://10.0.0.1:1234/v1"
+    save_config(cfg)
+
+    text = config_file.read_text()
+    assert "FROM_ENV" not in text
+    monkeypatch.delenv("FRED_API_KEY")
+    reloaded = load_config()
+    assert reloaded.data.fred_api_key == "ON_DISK_KEY"
+    assert reloaded.lmstudio.url == "http://10.0.0.1:1234/v1"

@@ -145,6 +145,25 @@ def load_config() -> QuarqConfig:
     return _apply_env_overrides(cfg)
 
 
+def _stored_value(path: Path, section: str, field: str) -> str:
+    """Read a field's current value from the config file, bypassing env overrides.
+
+    Args:
+        path: Config file path.
+        section: Top-level TOML table, e.g. 'data'.
+        field: Key within that table, e.g. 'fred_api_key'.
+
+    Returns:
+        The stored string, or "" if the file, table, or key is missing or unreadable.
+    """
+    try:
+        with path.open("rb") as f:
+            value = tomllib.load(f).get(section, {}).get(field, "")
+    except (OSError, tomllib.TOMLDecodeError):
+        return ""
+    return value if isinstance(value, str) else ""
+
+
 def save_config(config: QuarqConfig) -> None:
     """Write QuarqConfig back to ~/.quarq/config.toml.
 
@@ -168,7 +187,7 @@ def save_config(config: QuarqConfig) -> None:
         for env_var, (section, field) in _ENV_SECRETS.items():
             value = os.environ.get(env_var)
             if value and data.get(section, {}).get(field) == value:
-                data[section][field] = ""
+                data[section][field] = _stored_value(path, section, field)
         with path.open("wb") as f:
             tomli_w.dump(data, f)
     except Exception as exc:
