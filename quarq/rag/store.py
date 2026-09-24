@@ -203,3 +203,33 @@ class VectorStore:
         except Exception as exc:
             logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0
+
+    def list_chunks(self) -> list[RetrievedChunk]:
+        """Return every stored chunk with its metadata.
+
+        Used by the eval draft generator to sample passages. similarity is 0.0
+        because no query was run.
+
+        Returns:
+            All chunks in the collection.
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        try:
+            results = self._collection.get(include=["documents", "metadatas"])
+        except Exception as exc:
+            raise RAGError(f"VectorStore.list_chunks failed: {exc}") from exc
+
+        docs = results.get("documents") or []
+        metas = results.get("metadatas") or []
+        return [
+            RetrievedChunk(
+                content=content,
+                metadata=meta,
+                similarity=0.0,
+                source=str(meta.get("source", "")),
+                page=int(meta.get("page", 0)),
+            )
+            for content, meta in zip(docs, metas, strict=False)
+        ]

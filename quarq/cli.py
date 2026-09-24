@@ -510,6 +510,129 @@ def _cmd_serve(host: str, port: int, reload: bool) -> None:
     uvicorn.run("quarq.api.app:app", host=host, port=port, reload=reload)
 
 
+def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> int:
+    """Run the retrieval eval against the indexed corpus and write reports.
+
+    Args:
+        dataset: Gold-set JSONL path, or None for the packaged v1 set.
+        k: Comma-separated k values, e.g. "1,3,5".
+        out: Output directory for the timestamped reports.
+        doc_type_filter: Restrict each retrieval to the item's doc_type.
+
+    Returns:
+        0 on success, 1 on a handled failure.
+    """
+    from pathlib import Path
+
+    from quarq.eval.dataset import default_dataset_path
+    from quarq.eval.pipeline import evaluate
+    from quarq.eval.reporter import render_table
+    from quarq.eval.runner import parse_k_values
+    from quarq.exceptions import EvalError, RAGError
+    from quarq.rag.embedder import Embedder
+    from quarq.rag.retriever import Retriever
+    from quarq.rag.store import VectorStore
+
+    cfg = load_config()
+    try:
+        store = VectorStore(cfg)
+        chunk_count = store.count()
+        if chunk_count == 0:
+            console.print(
+                Panel(
+                    "[yellow]RAG corpus is empty. Run: [bold]quarq rag add ./docs/[/bold] "
+                    "before evaluating.[/yellow]",
+                    title="No documents indexed",
+                    border_style="yellow",
+                )
+            )
+            return 1
+        retriever = Retriever(
+            store=store, embedder=Embedder(model_name=cfg.embedder.model), cfg=cfg
+        )
+        known_refs = {(c.source, int(c.page)) for c in store.list_chunks()}
+        dataset_path = Path(dataset) if dataset else default_dataset_path()
+        with console.status("[bold cyan]Running retrieval eval...", spinner="dots"):
+            result, json_path, md_path = evaluate(
+                retriever,
+                cfg,
+                dataset_path=dataset_path,
+                out_dir=Path(out),
+                corpus_chunk_count=chunk_count,
+                k_values=parse_k_values(k),
+                use_doc_type_filter=doc_type_filter,
+                known_refs=known_refs,
+            )
+    except (EvalError, RAGError) as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="Eval failed", border_style="red"))
+        return 1
+
+    console.print(render_table(result))
+    console.print(f"[dim]JSON: {json_path}\nMarkdown: {md_path}[/dim]")
+    return 0
+
+
+def _cmd_eval_gen(per_doc_type: int, seed: int, out: str) -> int:
+    """Draft gold-set candidates with the research LLM for human review.
+
+    Args:
+        per_doc_type: Chunks to sample per doc_type.
+        seed: Sampling seed.
+        out: Destination JSONL for the drafts; never overwritten.
+
+    Returns:
+        0 on success, 1 on a handled failure.
+    """
+    from pathlib import Path
+
+    from quarq.eval.dataset import write_gold
+    from quarq.eval.generate import draft_items, sample_chunks
+    from quarq.exceptions import EvalError, RAGError
+    from quarq.llm import get_llm
+    from quarq.rag.store import VectorStore
+
+    out_path = Path(out)
+    cfg = load_config()
+    try:
+        if per_doc_type < 1:
+            raise EvalError(f"--per-doc-type must be >= 1, got {per_doc_type}")
+        if out_path.exists():
+            raise EvalError(f"Refusing to overwrite {out_path}: choose a new --out path")
+        store = VectorStore(cfg)
+        if store.count() == 0:
+            raise EvalError("RAG corpus is empty. Run: quarq rag add ./docs/")
+        llm = get_llm(cfg, agent="research")
+        chunks = sample_chunks(store.list_chunks(), per_doc_type=per_doc_type, seed=seed)
+        with console.status(
+            f"[bold cyan]Drafting {len(chunks)} questions...", spinner="dots"
+        ):
+            items, skipped = draft_items(chunks, llm)
+        if not items:
+            raise EvalError(
+                f"No drafts produced ({skipped} chunks skipped): the LLM returned "
+                "no usable questions. Nothing was written."
+            )
+        write_gold(items, out_path)
+    except (EvalError, RAGError) as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="eval-gen failed", border_style="red"))
+        return 1
+
+    console.print(
+        Panel(
+            f"Wrote {len(items)} drafts to [bold]{out_path}[/bold] ({skipped} skipped).\n"
+            "These are NOT gold yet. For each row: open the PDF page, fix or delete the "
+            "question, add any other correct pages, write a note, and set provenance to "
+            "'synthetic-draft+human-accept'. Then copy accepted rows into "
+            "quarq/eval/datasets/quarq_gold_v1.jsonl.\n"
+            "Use the PDF viewer's page index (1 = first physical page), not the printed "
+            "page number.",
+            title="Drafts ready for review",
+            border_style="green",
+        )
+    )
+    return 0
+
+
 def main() -> None:
     """Entry point for the quarq CLI."""
     parser = argparse.ArgumentParser(
@@ -559,6 +682,33 @@ def main() -> None:
     report_parser.add_argument("--open", action="store_true", dest="open_browser",
                                help="Open report in browser after generation")
 
+    # quarq eval
+    eval_parser = subparsers.add_parser(
+        "eval", help="Measure retrieval quality against a human-accepted gold set"
+    )
+    eval_parser.add_argument(
+        "--dataset", default=None, help="Gold-set JSONL (default: packaged quarq_gold_v1)"
+    )
+    eval_parser.add_argument("--k", default="1,3,5", help="Comma-separated k values")
+    eval_parser.add_argument("--out", default="reports", help="Directory for the reports")
+    eval_parser.add_argument(
+        "--doc-type-filter",
+        action="store_true",
+        help="Restrict each retrieval to the question's doc_type",
+    )
+
+    # quarq eval-gen
+    eval_gen_parser = subparsers.add_parser(
+        "eval-gen", help="Draft gold-set questions with the LLM for human review"
+    )
+    eval_gen_parser.add_argument(
+        "--per-doc-type", type=int, default=20, help="Chunks to sample per doc_type"
+    )
+    eval_gen_parser.add_argument("--seed", type=int, default=7, help="Sampling seed")
+    eval_gen_parser.add_argument(
+        "--out", default="reports/eval_gen_drafts.jsonl", help="Draft JSONL (never overwritten)"
+    )
+
     args = parser.parse_args()
 
     try:
@@ -590,6 +740,14 @@ def main() -> None:
                 include_narrative=args.narrative,
                 open_browser=args.open_browser,
             )
+        elif args.command == "eval":
+            code = _cmd_eval(args.dataset, args.k, args.out, args.doc_type_filter)
+            if code:
+                sys.exit(code)
+        elif args.command == "eval-gen":
+            code = _cmd_eval_gen(args.per_doc_type, args.seed, args.out)
+            if code:
+                sys.exit(code)
         else:
             _launch_loop()
     except KeyboardInterrupt:

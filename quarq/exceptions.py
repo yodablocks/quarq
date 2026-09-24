@@ -15,3 +15,7 @@ class ProviderError(QuarqError):
 
 class RAGError(QuarqError):
     """Raised when a RAG operation fails."""
+
+
+class EvalError(QuarqError):
+    """Raised when an evaluation dataset, run, or report fails."""
