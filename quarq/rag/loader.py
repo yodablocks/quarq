@@ -96,11 +96,32 @@ def _chunk_text(
             chunks.append((chunk_text, page_num))
             current_words = current_words[chunk_size - chunk_overlap:]
 
-    if current_words:
+    # After a full chunk, the first chunk_overlap leftover words are already the tail of
+    # that chunk. Emit the remainder only if it adds words of its own; otherwise it would
+    # be a chunk entirely contained in the previous one.
+    new_words = len(current_words) - (chunk_overlap if chunks else 0)
+    if current_words and new_words > 0:
         chunk_text = " ".join(current_words)
         chunks.append((chunk_text, page_num))
 
     return chunks
+
+
+def chunk_id(source: str, page: int, text: str) -> str:
+    """Return the stable id of a chunk: sha256 of "source:page:text".
+
+    Including the source and page means the same paragraph in two documents gets two
+    ids. Re-indexing an unchanged file reproduces the same ids, so upserts don't duplicate.
+
+    Args:
+        source: Source filename.
+        page: Page number.
+        text: Chunk text.
+
+    Returns:
+        Hex sha256 digest.
+    """
+    return hashlib.sha256(f"{source}:{page}:{text}".encode("utf-8")).hexdigest()
 
 
 def _extract_pdf_date(metadata: dict, filename: str) -> str:
@@ -170,9 +191,7 @@ def load_pdf(
                     continue
 
                 for chunk_text, pnum in _chunk_text(text, page_num, chunk_size, chunk_overlap):
-                    chunk_id = hashlib.sha256(
-                        f"{filename}:{pnum}:{chunk_text}".encode("utf-8")
-                    ).hexdigest()
+                    cid = chunk_id(filename, pnum, chunk_text)
                     doc = Document(
                         content=chunk_text,
                         metadata={
@@ -180,7 +199,7 @@ def load_pdf(
                             "doc_type": doc_type,
                             "date": pdf_date,
                             "page": pnum,
-                            "chunk_id": chunk_id,
+                            "chunk_id": cid,
                             **overrides,
                         },
                     )

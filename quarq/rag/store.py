@@ -41,6 +41,14 @@ class RetrievedChunk:
     page: int
 
 
+@dataclass
+class DuplicateReport:
+    """Chunk ids that repeat content already in the index."""
+
+    exact_duplicates: list[str]
+    contained_tails: list[str]
+
+
 class VectorStore:
     """Persistent ChromaDB vector store for document chunks.
 
@@ -242,6 +250,112 @@ class VectorStore:
         except Exception as exc:
             logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0
+
+    def replace_sources(
+        self, documents: list[Document], embeddings: list[list[float]]
+    ) -> tuple[int, int]:
+        """Upsert documents, then remove chunks of the same sources that weren't re-produced.
+
+        Re-indexing a file this way replaces its chunks instead of adding copies next to
+        the old ones (which is how chunks stored under an older id formula were duplicated).
+
+        Args:
+            documents: Chunks to store; every source present is treated as fully re-indexed.
+            embeddings: Parallel embedding vectors.
+
+        Returns:
+            (chunks upserted, stale chunks removed).
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        added = self.upsert(documents, embeddings)
+        keep: dict[str, set[str]] = {}
+        for doc in documents:
+            keep.setdefault(str(doc.metadata["source"]), set()).add(str(doc.metadata["chunk_id"]))
+        stale: list[str] = []
+        try:
+            for source, new_ids in keep.items():
+                existing = self._collection.get(where={"source": source}, include=[])["ids"]
+                stale.extend(cid for cid in existing if cid not in new_ids)
+        except Exception as exc:
+            raise RAGError(f"VectorStore.replace_sources failed: {exc}") from exc
+        return added, self.remove_chunks(stale)
+
+    def find_duplicate_chunks(self, max_tail_words: int) -> DuplicateReport:
+        """Find chunks that repeat content already in the index.
+
+        Two kinds are reported:
+        - exact duplicates: the same (source, page, text) stored under more than one id.
+          The copy whose id matches loader.chunk_id is kept; the others are listed.
+        - contained tails: short chunks (at most max_tail_words words) whose text sits
+          entirely inside another chunk of the same page, as the chunker used to emit.
+
+        Args:
+            max_tail_words: Longest chunk that can count as a contained tail (the overlap).
+
+        Returns:
+            The ids to remove, by kind, each sorted.
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        from quarq.rag.loader import chunk_id
+
+        try:
+            ids, docs, metas = [], [], []
+            for offset in range(0, self._collection.count(), RAG_READ_BATCH_SIZE):
+                got = self._collection.get(
+                    include=["documents", "metadatas"], limit=RAG_READ_BATCH_SIZE, offset=offset
+                )
+                ids += got["ids"]
+                docs += got["documents"]
+                metas += got["metadatas"]
+        except Exception as exc:
+            raise RAGError(f"VectorStore.find_duplicate_chunks failed: {exc}") from exc
+
+        groups: dict[tuple[str, int, str], list[int]] = {}
+        for i, (meta, text) in enumerate(zip(metas, docs, strict=True)):
+            groups.setdefault((str(meta["source"]), int(meta["page"]), text), []).append(i)
+
+        exact: list[str] = []
+        kept_by_page: dict[tuple[str, int], list[int]] = {}
+        for (source, page, text), members in groups.items():
+            canonical = chunk_id(source, page, text)
+            keep = next(
+                (i for i in members if ids[i] == canonical), min(members, key=ids.__getitem__)
+            )
+            exact.extend(ids[i] for i in members if i != keep)
+            kept_by_page.setdefault((source, page), []).append(keep)
+
+        tails: list[str] = []
+        for members in kept_by_page.values():
+            for i in members:
+                if len(docs[i].split()) <= max_tail_words and any(
+                    j != i and docs[i] in docs[j] and len(docs[j]) > len(docs[i]) for j in members
+                ):
+                    tails.append(ids[i])
+        return DuplicateReport(exact_duplicates=sorted(exact), contained_tails=sorted(tails))
+
+    def remove_chunks(self, chunk_ids: list[str]) -> int:
+        """Delete chunks by id, in batches.
+
+        Args:
+            chunk_ids: Ids to delete. Ids not in the collection are ignored by ChromaDB.
+
+        Returns:
+            Number of ids passed for deletion.
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        try:
+            for start in range(0, len(chunk_ids), RAG_READ_BATCH_SIZE):
+                self._collection.delete(ids=chunk_ids[start: start + RAG_READ_BATCH_SIZE])
+        except Exception as exc:
+            raise RAGError(f"VectorStore.remove_chunks failed: {exc}") from exc
+        self._cached_count = None
+        return len(chunk_ids)
 
     def legacy_collection_counts(self) -> dict[str, int]:
         """Return the chunk count of every legacy collection that exists in this ChromaDB.

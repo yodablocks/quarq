@@ -333,14 +333,52 @@ def _cmd_rag_add(path_str: str) -> None:
     ) as progress:
         task = progress.add_task("Embedding and indexing...", total=None)
         embeddings = embedder.embed([doc.content for doc in documents])
-        added = store.upsert(documents, embeddings)
+        added, removed = store.replace_sources(documents, embeddings)
         progress.update(task, completed=True)
 
     console.print(
-        f"[green]Done.[/green] Added [bold]{added}[/bold] new chunks "
-        f"({len(documents) - added} duplicates skipped). "
-        f"Corpus now has [bold]{store.count()}[/bold] chunks."
+        f"[green]Done.[/green] Indexed [bold]{added}[/bold] chunks"
+        + (f", removed [bold]{removed}[/bold] stale chunks of the same files" if removed else "")
+        + f". Corpus now has [bold]{store.count()}[/bold] chunks."
     )
+
+
+def _cmd_rag_dedupe(dry_run: bool) -> int:
+    """Remove chunks that repeat content already in the index.
+
+    Args:
+        dry_run: Only report what would be removed.
+
+    Returns:
+        Process exit code (0 on success).
+    """
+    from quarq.exceptions import RAGError
+    from quarq.rag.store import VectorStore
+
+    cfg = load_config()
+    try:
+        store = VectorStore(cfg)
+        before = store.count()
+        report = store.find_duplicate_chunks(max_tail_words=cfg.rag.chunk_overlap)
+        to_remove = report.exact_duplicates + report.contained_tails
+        console.print(
+            f"{before} chunks: {len(report.exact_duplicates)} exact duplicates "
+            f"(same file, page and text under another id), {len(report.contained_tails)} "
+            f"overlap-only tails contained in another chunk."
+        )
+        if dry_run or not to_remove:
+            note = "Dry run: nothing removed." if to_remove else "Nothing removed."
+            console.print(f"[dim]{note}[/dim]")
+            return 0
+        store.remove_chunks(to_remove)
+    except RAGError as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="Dedupe failed", border_style="red"))
+        return 1
+    console.print(
+        f"[green]Removed {len(to_remove)} chunks.[/green] {RAG_COLLECTION_NAME} now has "
+        f"[bold]{store.count()}[/bold] chunks. Run [bold]quarq eval[/bold] to check the index."
+    )
+    return 0
 
 
 def _cmd_rag_migrate() -> int:
@@ -772,6 +810,12 @@ def main() -> None:
     rag_sub.add_parser(
         "migrate", help="Copy the previous collection into the current one (no re-embedding)"
     )
+    rag_dedupe_parser = rag_sub.add_parser(
+        "dedupe", help="Remove chunks that repeat content already in the index"
+    )
+    rag_dedupe_parser.add_argument(
+        "--dry-run", action="store_true", help="Only report what would be removed"
+    )
     rag_manifest_parser = rag_sub.add_parser(
         "manifest", help="Apply the corpus manifest to chunks already indexed (no re-embedding)"
     )
@@ -843,6 +887,10 @@ def main() -> None:
                 _cmd_rag_status()
             elif args.rag_command == "add":
                 _cmd_rag_add(args.path)
+            elif args.rag_command == "dedupe":
+                code = _cmd_rag_dedupe(args.dry_run)
+                if code:
+                    sys.exit(code)
             elif args.rag_command == "migrate":
                 code = _cmd_rag_migrate()
                 if code:
