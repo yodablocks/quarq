@@ -1,6 +1,24 @@
 """Project-wide constants shared across quarq modules."""
 
-RAG_COLLECTION_NAME = "quarq_rag_v1"
+# v2 is v1 rebuilt with explicit HNSW settings (below); `quarq rag migrate` copies v1 into it
+# without re-embedding. Bump the suffix when the index has to be rebuilt.
+RAG_COLLECTION_NAME = "quarq_rag_v2"
+RAG_LEGACY_COLLECTION_NAMES: tuple[str, ...] = ("quarq_rag_v1",)
+
+# HNSW index settings, applied when the collection is created. ChromaDB honours them only
+# at creation: changing ef_search later with collection.modify() had no effect in testing.
+# With ChromaDB's defaults, asking for 20 candidates left true nearest neighbours out on
+# 6-7 of 28 gold questions; these settings left none out (2026-09-25, 4,235 chunks).
+# A denser graph (ef_construction, max_neighbors) costs more memory and build time.
+RAG_HNSW_CONFIG: dict[str, str | int] = {
+    "space": "cosine",
+    "ef_construction": 400,
+    "max_neighbors": 32,
+    "ef_search": 200,
+}
+
+# `quarq rag migrate`: chunks copied per batch from a legacy collection.
+RAG_MIGRATE_BATCH_SIZE: int = 1000
 
 # Retrieval eval: k values reported by `quarq eval` (5 matches config.rag.top_k default).
 DEFAULT_K_VALUES: tuple[int, ...] = (1, 3, 5)

@@ -107,7 +107,7 @@ flowchart LR
     subgraph rag["rag/"]
         L["PDF loader<br/>512 / 64 chunks"]
         E["multilingual-e5-large"]
-        V[(ChromaDB<br/>quarq_rag_v1)]
+        V[(ChromaDB<br/>quarq_rag_v2)]
     end
     subgraph llm["llm/"]
         R["reporting agent<br/>(fast)"]
@@ -153,6 +153,7 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 | `quarq query <question>` | Ask the RAG corpus. `--doc-type`, `--k` |
 | `quarq rag add <path>` | Index a PDF or folder |
 | `quarq rag status` | Corpus statistics |
+| `quarq rag migrate` | Copy the previous collection (`quarq_rag_v1`) into the current one, without re-embedding |
 | `quarq rag manifest <folder>` | Apply the corpus manifest to chunks already indexed, without re-embedding |
 | `quarq config --set-lmstudio-url <url>` | Point at your LM Studio instance |
 | `quarq serve` | FastAPI server on `127.0.0.1:8000`. `--host`, `--port`, `--reload` |

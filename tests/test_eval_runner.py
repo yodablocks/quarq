@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from quarq.config import QuarqConfig
+from quarq.constants import RAG_COLLECTION_NAME
 from quarq.eval.dataset import GoldItem, GoldRef
 from quarq.eval.runner import parse_k_values, run_eval
 from quarq.exceptions import EvalError
@@ -76,7 +77,7 @@ def test_run_eval_records_per_question_detail_and_snapshot(fake_retriever_cls) -
     assert first.metrics["mrr"] == 1.0
     assert result.per_question[1].n_above_threshold == 0
     assert result.config_snapshot["min_similarity"] == 0.35
-    assert result.config_snapshot["collection"] == "quarq_rag_v1"
+    assert result.config_snapshot["collection"] == RAG_COLLECTION_NAME
     assert result.config_snapshot["embedder_model"] == "intfloat/multilingual-e5-large"
     assert result.corpus_chunk_count == 3333
     assert result.dataset_name == "gold_v1"

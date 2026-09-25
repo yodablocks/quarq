@@ -5,9 +5,15 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from quarq.config import QuarqConfig
-from quarq.constants import RAG_COLLECTION_NAME
+from quarq.constants import (
+    RAG_COLLECTION_NAME,
+    RAG_HNSW_CONFIG,
+    RAG_LEGACY_COLLECTION_NAMES,
+    RAG_MIGRATE_BATCH_SIZE,
+)
 from quarq.exceptions import RAGError
 from quarq.rag.loader import Document
 
@@ -50,14 +56,48 @@ class VectorStore:
 
         try:
             self._client = chromadb.PersistentClient(path=str(chroma_path))
-            self._collection = self._client.get_or_create_collection(
-                name=RAG_COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"},
-            )
+            self._collection = self._open_collection()
         except Exception as exc:
             raise RAGError(f"Failed to initialise ChromaDB at {chroma_path}: {exc}") from exc
 
         self._cached_count: int | None = None
+        self.config_drift = self._hnsw_drift()
+        if self.config_drift:
+            logger.warning(
+                "Collection %s has HNSW settings that differ from RAG_HNSW_CONFIG "
+                "(setting: (actual, expected)): %s. ChromaDB applies them only at creation; "
+                "rebuild the collection to change them.",
+                RAG_COLLECTION_NAME,
+                self.config_drift,
+            )
+
+    def _open_collection(self) -> Any:
+        """Get the collection, creating it with RAG_HNSW_CONFIG if it doesn't exist.
+
+        Returns:
+            The ChromaDB collection.
+        """
+        return self._client.get_or_create_collection(
+            name=RAG_COLLECTION_NAME,
+            configuration=cast(Any, {"hnsw": dict(RAG_HNSW_CONFIG)}),  # chromadb TypedDict
+        )
+
+    def _hnsw_drift(self) -> dict[str, tuple[object, object]]:
+        """Compare the collection's HNSW settings with RAG_HNSW_CONFIG.
+
+        Returns:
+            {setting: (actual, expected)} for every setting that differs; empty if all match.
+        """
+        try:
+            actual = (self._collection.configuration_json or {}).get("hnsw") or {}
+        except Exception as exc:  # the check must never block opening the store
+            logger.warning("Could not read HNSW settings of %s: %s", RAG_COLLECTION_NAME, exc)
+            return {}
+        return {
+            key: (actual.get(key), expected)
+            for key, expected in RAG_HNSW_CONFIG.items()
+            if actual.get(key) != expected
+        }
 
     def upsert(self, documents: list[Document], embeddings: list[list[float]]) -> int:
         """Add documents to the collection, skipping existing chunk_ids.
@@ -181,10 +221,7 @@ class VectorStore:
         """
         try:
             self._client.delete_collection(RAG_COLLECTION_NAME)
-            self._collection = self._client.get_or_create_collection(
-                name=RAG_COLLECTION_NAME,
-                metadata={"hnsw:space": "cosine"},
-            )
+            self._collection = self._open_collection()
         except Exception as exc:
             raise RAGError(f"VectorStore.reset failed: {exc}") from exc
 
@@ -203,6 +240,63 @@ class VectorStore:
         except Exception as exc:
             logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0
+
+    def legacy_collection_counts(self) -> dict[str, int]:
+        """Return the chunk count of every legacy collection that exists in this ChromaDB.
+
+        Returns:
+            {collection name: chunk count}, only for legacy collections present.
+        """
+        collections = self._client.list_collections()
+        existing = {c.name if hasattr(c, "name") else str(c) for c in collections}
+        counts: dict[str, int] = {}
+        for name in RAG_LEGACY_COLLECTION_NAMES:
+            if name in existing:
+                counts[name] = self._client.get_collection(name).count()
+        return counts
+
+    def migrate_from(self, legacy_name: str, batch_size: int = RAG_MIGRATE_BATCH_SIZE) -> int:
+        """Copy every chunk of a legacy collection into this one, without re-embedding.
+
+        Ids, embeddings, text and metadata are copied as they are, so running it twice
+        gives the same result. The legacy collection is left untouched.
+
+        Args:
+            legacy_name: Name of the collection to copy from.
+            batch_size: Chunks read and written per batch.
+
+        Returns:
+            Number of chunks copied.
+
+        Raises:
+            RAGError: If the legacy collection doesn't exist, or on any ChromaDB error.
+        """
+        try:
+            legacy = self._client.get_collection(legacy_name)
+        except Exception as exc:
+            raise RAGError(f"Collection {legacy_name!r} not found: {exc}") from exc
+        try:
+            total = legacy.count()
+            copied = 0
+            for offset in range(0, total, batch_size):
+                batch = legacy.get(
+                    include=["embeddings", "documents", "metadatas"],
+                    limit=batch_size,
+                    offset=offset,
+                )
+                if not batch["ids"]:
+                    break
+                self._collection.upsert(
+                    ids=batch["ids"],
+                    embeddings=batch["embeddings"],
+                    documents=batch["documents"],
+                    metadatas=batch["metadatas"],
+                )
+                copied += len(batch["ids"])
+        except Exception as exc:
+            raise RAGError(f"Migrating {legacy_name!r} failed: {exc}") from exc
+        self._cached_count = None
+        return copied
 
     def all_records(self) -> dict[str, list]:
         """Return every stored chunk's id, text, metadata and embedding.
