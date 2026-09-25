@@ -126,7 +126,7 @@ flowchart LR
 ```
 
 - **Data path:** providers fetch prices and rates, `portfolio.py` computes the metrics, the reporting agent turns them into prose, and `report/` renders the HTML.
-- **Research path:** PDFs are chunked with metadata (`source`, `doc_type`, `date`, `page`, `chunk_id`), embedded and stored. A query returns the 5 best-matching distinct pages above a 0.35 similarity floor, keeping the best chunk of each page. The research agent is prompted with the best 3 and told to answer only from them, and the answer carries citations for every retrieved chunk.
+- **Research path:** PDFs are chunked with metadata (`source`, `doc_type`, `date`, `page`, `chunk_id`), embedded and stored. A query takes the 20 nearest chunks above a 0.35 similarity floor, re-ranks the top 10 with a cross-encoder that reads the question and each passage together, and returns the 5 best distinct pages (one chunk per page). The research agent is prompted with the best 3 and told to answer only from them, and the answer carries citations for every retrieved chunk.
 - **LLM selection:** quarq uses LM Studio when it is reachable. If not, and `ANTHROPIC_API_KEY` is set, it falls back to the Claude API. With neither, LLM features fail with a clear error and the metrics still work.
 
 Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`, `prospectus`, `factsheet`, or `macro` by default. Filter queries on it with `--doc-type`.
@@ -169,8 +169,12 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 
 | Retrieval | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
-| All documents | 22 / 38 (58%) | 32 / 38 (84%) | 35 / 38 (92%) | 0.72 |
-| Filtered to the question's `doc_type` | 23 / 38 (61%) | 34 / 38 (89%) | 36 / 38 (95%) | 0.75 |
+| **Re-ranked (default)**, all documents | **32 / 38 (84%)** | 34 / 38 (89%) | 35 / 38 (92%) | **0.87** |
+| **Re-ranked (default)**, filtered to the question's `doc_type` | **32 / 38 (84%)** | 35 / 38 (92%) | 36 / 38 (95%) | **0.88** |
+| Embedding order only (`rerank = false`), all documents | 22 / 38 (58%) | 32 / 38 (84%) | 35 / 38 (92%) | 0.72 |
+| Embedding order only, filtered to `doc_type` | 23 / 38 (61%) | 34 / 38 (89%) | 36 / 38 (95%) | 0.75 |
+
+The cross-encoder re-ranker moved 11 questions up and 2 down. Up: the answer page went to first place for questions where a summary page, a neighbouring page or another edition used to win, including one it had missed entirely. Down: one edition confusion (a June 2026 index composition above the March 2026 factsheet) and one question where it prefers a 2025 page that also states the 2024 figure but isn't yet in that question's gold list.
 
 History on the first 28 questions: returning one result per page (instead of several chunks of the same page) raised Hit@5 from 23 to 25 and MRR from 0.71 to 0.75. The 10 later questions are year-sensitive (the same fact in the 2023, 2024 and 2025 editions) and harder, which is why the overall scores dip.
 
@@ -178,8 +182,8 @@ Hit@k is the share of questions whose answer page is in the top k. MRR averages 
 
 What the misses show:
 
-- **Another edition can outrank the right one, but rarely.** Of 16 questions whose answer depends on the year or edition, 14 put the right edition first. 2 rank another edition first: the 2023 annual report above the 2024 one for a 2024 figure, and the June 2026 CAC 40 composition above the March 2026 factsheet. The right page is second in both, but an answer could cite the wrong year's number. The corpus manifest records each document's period, which a year-aware ranking can use.
-- **The right document, the wrong page.** The more common miss on year questions: the correct edition comes first, but through another page (a summary or table of contents) rather than the one with the figure.
+- **Another edition can still outrank the right one.** Without re-ranking, 2 of 16 year- or edition-sensitive questions ranked another edition first. The re-ranker fixes one (the 2023 annual report no longer beats the 2024 one for a 2024 figure); the June 2026 CAC 40 composition still beats the March 2026 factsheet. The corpus manifest records each document's period, which a year-aware step could use.
+- **The right document, the wrong page.** Without re-ranking, the most common miss on year questions: the correct edition came first, but through a summary or contents page. The re-ranker fixes most of these.
 - **Neighbouring pages win.** In three ECB questions, nearby pages on the same topic (for example p112 for an answer on p113) ranked above the answer page. In one of them, the answer page still isn't in the top 5.
 - **Answers in footnotes lose to the main text.** One ECB answer appears only in a footnote, and retrieval returned the main-text pages about the same April 2025 episode instead.
 - **The similarity floor never filters.** Every question gets as many results as it asks for (only the 4-page factsheet set returns fewer), because retrieved chunks score far above 0.35 (about 0.8 to 0.9 in spot checks).
@@ -197,6 +201,16 @@ export FRED_API_KEY=...        # live OAT 10Y rate; overrides the config value
 export ANTHROPIC_API_KEY=...   # cloud fallback when LM Studio is unavailable
 ```
 
+Re-ranking is on by default and set in the `[rag]` section:
+
+```toml
+[rag]
+rerank = true                              # false: embedding order only (faster)
+reranker_model = "BAAI/bge-reranker-v2-m3" # multilingual, Apache-2.0, ~2.2 GB, downloaded on first use
+rerank_top_n = 10                          # candidates re-ranked per query
+rerank_max_length = 512                    # tokens per question + passage pair
+```
+
 `FRED_API_KEY` is read at load time and never written back to `config.toml`. Without it, quarq uses the configured fallback risk-free rate (3%). ECB, OECD and the other providers need no key.
 
 ## Open WebUI
@@ -212,8 +226,9 @@ The tools call quarq over HTTP and default to `host.docker.internal:8000`, which
 quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it has not been used in production. Known limitations:
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
-- **Retrieval misses the right page about 40% of the time on the first try.** The answer page ranks first for 22 of 38 questions and is in the top 5 for 35 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
+- **Retrieval misses the right page about one time in six on the first try.** With re-ranking, the answer page ranks first for 32 of 38 questions and is in the top 5 for 35 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
 - **Scanned PDFs aren't searchable.** quarq reads the PDF's text layer and has no OCR, so pages that are only images (scans, full-page photos, infographics) are not indexed. `quarq rag add` warns about them and `quarq rag coverage` lists them; in the current corpus that's 28 of 1,973 pages, and no document is scanned. Numbers inside charts are not searchable either.
+- **Re-ranking costs time and memory.** The cross-encoder adds about 2.5 seconds per query on an Apple GPU and about 400 MB of memory, and its first use downloads about 2.2 GB. Set `rerank = false` for faster, less accurate retrieval.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
 - **The test suite is fully mocked.** It needs no network, server or LM Studio, which also means it doesn't prove the live APIs still answer the same way. End-to-end checks against a live stack are manual.
 - **yfinance is unofficial.** It scrapes Yahoo Finance and can break or rate-limit without notice.
