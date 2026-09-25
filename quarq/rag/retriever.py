@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from quarq.config import QuarqConfig
-from quarq.constants import RETRIEVAL_CANDIDATE_POOL, RETRIEVAL_OVERFETCH_FACTOR
+from quarq.constants import RETRIEVAL_OVERFETCH_FACTOR
 from quarq.rag.embedder import Embedder
 from quarq.rag.store import RetrievedChunk, VectorStore
 
@@ -60,8 +60,7 @@ class Retriever:
         query_embedding = self._embedder.embed_query(query)
 
         filters = {"doc_type": doc_type} if doc_type else None
-        # Ask for a wide candidate pool: HNSW recall depends on how many results are requested.
-        n_candidates = max(effective_k * RETRIEVAL_OVERFETCH_FACTOR, RETRIEVAL_CANDIDATE_POOL)
+        n_candidates = effective_k * RETRIEVAL_OVERFETCH_FACTOR
         chunks = self._store.query(query_embedding, k=n_candidates, filters=filters)
 
         filtered = [c for c in chunks if c.similarity >= threshold]

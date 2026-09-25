@@ -51,13 +51,6 @@ DOC_TYPES: frozenset[str] = frozenset(
     {"ecb_fsr", "bdf_fsr", "amf_sfdr", "prospectus", "factsheet", "macro"}
 )
 
-# Retriever: always ask the store for at least this many candidates. ChromaDB's HNSW search
-# only explores about as many neighbours as results requested (its ef_search setting had no
-# effect in testing), so asking for 20 missed true top-20 chunks on 7 of 28 gold questions;
-# asking for 500 missed none, at about 4 ms per query on 4,235 chunks. Re-check with the
-# exact-search comparison if the corpus grows by an order of magnitude.
-RETRIEVAL_CANDIDATE_POOL: int = 500
-
 # Eval index check: two similarities closer than this count as a tie, so the HNSW index
 # isn't blamed for returning one near-duplicate chunk instead of its twin. ChromaDB's
 # distance-based scores and an exact cosine differ by about 1e-7 for the same pair.
