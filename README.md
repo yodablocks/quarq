@@ -131,6 +131,19 @@ flowchart LR
 
 Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`, `prospectus`, `factsheet`, or `macro` by default. Filter queries on it with `--doc-type`.
 
+A PDF's own date is when the file was created, not the period it covers: an annual report on 2024 is created in 2025. To record the facts, put a `quarq_manifest.toml` next to the PDFs:
+
+```toml
+[[document]]
+source = "bdf_rapport_annuel_2024.pdf"
+period_start = 2024-01-01   # required: the period the document is about
+period_end = 2024-12-31
+published = 2025-03-17      # optional: becomes the chunk's date
+doc_type = "bdf_fsr"        # optional: overrides the filename rule
+```
+
+`quarq rag add` applies it when indexing, and `quarq rag manifest <folder>` writes it onto chunks already indexed. Unknown keys, unknown document types and reversed periods are rejected, with the document and field named.
+
 ## Commands
 
 | Command | What it does |
@@ -140,6 +153,7 @@ Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`
 | `quarq query <question>` | Ask the RAG corpus. `--doc-type`, `--k` |
 | `quarq rag add <path>` | Index a PDF or folder |
 | `quarq rag status` | Corpus statistics |
+| `quarq rag manifest <folder>` | Apply the corpus manifest to chunks already indexed, without re-embedding |
 | `quarq config --set-lmstudio-url <url>` | Point at your LM Studio instance |
 | `quarq serve` | FastAPI server on `127.0.0.1:8000`. `--host`, `--port`, `--reload` |
 | `quarq report --portfolio <toml>` | Generate a report. `--format html\|pdf\|json`, `--output`, `--narrative`, `--open` |
