@@ -43,6 +43,9 @@ htmlcov/
 
 # quarq specific
 CLAUDE.local.md
+# Claude Code instructions: kept locally, not published
+CLAUDE.md
+.claude/
 # Generated reports (contain portfolio holdings -- never commit)
 reports/
 /report*.html
