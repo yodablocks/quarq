@@ -187,3 +187,42 @@ def test_markdown_and_json_include_the_index_check(tmp_path: Path) -> None:
     assert "## Index check" in md
     assert "1 / 2" in md and "3" in md
     assert data["index_check"]["missed_chunks"] == 3
+
+
+def test_all_records_returns_one_float32_array(tmp_path: Path) -> None:
+    """Embeddings stay a compact numpy array; Python lists of floats cost ~10x the memory."""
+    import numpy as np
+
+    records = _real_store(tmp_path).all_records()
+
+    assert isinstance(records["embeddings"], np.ndarray)
+    assert records["embeddings"].dtype == np.float32
+    assert records["embeddings"].shape == (len(VECTORS), 3)
+    assert len(records["ids"]) == len(VECTORS)
+
+
+def test_exact_store_matrix_is_float32(tmp_path: Path) -> None:
+    import numpy as np
+
+    from quarq.rag.exact import ExactStore
+
+    assert ExactStore(_real_store(tmp_path))._matrix.dtype == np.float32
+
+
+def test_all_records_reassembles_small_batches_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import numpy as np
+
+    store = _real_store(tmp_path)
+    whole = store.all_records()
+    monkeypatch.setattr("quarq.rag.store.RAG_READ_BATCH_SIZE", 2)  # 5 chunks -> 3 batches
+
+    batched = store.all_records()
+
+    assert batched["ids"] == whole["ids"]
+    assert batched["documents"] == whole["documents"]
+    assert batched["metadatas"] == whole["metadatas"]
+    assert np.array_equal(batched["embeddings"], whole["embeddings"])
+    row = {cid: i for i, cid in enumerate(batched["ids"])}
+    assert np.allclose(batched["embeddings"][row["b1"]], VECTORS["b1"][3], atol=1e-6)

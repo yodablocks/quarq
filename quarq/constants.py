@@ -17,8 +17,9 @@ RAG_HNSW_CONFIG: dict[str, str | int] = {
     "ef_search": 200,
 }
 
-# `quarq rag migrate`: chunks copied per batch from a legacy collection.
-RAG_MIGRATE_BATCH_SIZE: int = 1000
+# Chunks read per batch from ChromaDB (`quarq rag migrate`, the eval's exact-search snapshot).
+# Batches keep peak memory low: ChromaDB returns embeddings as float64.
+RAG_READ_BATCH_SIZE: int = 1000
 
 # Retrieval eval: k values reported by `quarq eval` (5 matches config.rag.top_k default).
 DEFAULT_K_VALUES: tuple[int, ...] = (1, 3, 5)
