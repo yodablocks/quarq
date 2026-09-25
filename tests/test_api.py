@@ -149,6 +149,8 @@ def test_rag_query_returns_answer_and_sources(client):
         model="qwen/qwen3.6-27b",
         backend="lmstudio",
         latency_ms=450,
+        figures_checked=2,
+        unsupported_figures=["9 999"],
     )
 
     with patch("quarq.api.routes.rag.VectorStore") as MockStore, \
@@ -164,6 +166,8 @@ def test_rag_query_returns_answer_and_sources(client):
     assert "answer" in data
     assert "sources" in data
     assert len(data["sources"]) == 2
+    assert data["figures_checked"] == 2
+    assert data["unsupported_figures"] == ["9 999"]
 
 
 def test_rag_add_nonexistent_path_returns_404(client):

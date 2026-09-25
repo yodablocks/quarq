@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 
 class PortfolioRequest(BaseModel):
@@ -103,6 +103,11 @@ class RAGQueryResponse(BaseModel):
     model: str
     backend: str
     latency_ms: int
+    figures_checked: int | None = None
+    unsupported_figures: list[str] = Field(
+        default_factory=list,
+        description="Figures in the answer that appear nowhere in the passages the model saw",
+    )
 
 
 class RAGAddResponse(BaseModel):

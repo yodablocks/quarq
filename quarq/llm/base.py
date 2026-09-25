@@ -15,12 +15,17 @@ class GenerationResult:
         model: Model identifier used for generation.
         backend: Backend name (e.g. 'lmstudio', 'claude').
         latency_ms: Wall-clock time for the call in milliseconds.
+        figures_checked: For research answers, how many figures were checked against
+            the prompt; None when no check ran.
+        unsupported_figures: Figures in the answer that appear nowhere in the prompt.
     """
 
     answer: str
     model: str
     backend: str
     latency_ms: int
+    figures_checked: int | None = None
+    unsupported_figures: list[str] | None = None
 
 
 class BaseLLM(ABC):
