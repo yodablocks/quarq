@@ -66,6 +66,8 @@ def post_query(body: RAGQueryRequest, request: Request) -> RAGQueryResponse:
         model=result.model,
         backend=result.backend,
         latency_ms=result.latency_ms,
+        figures_checked=result.figures_checked,
+        unsupported_figures=result.unsupported_figures or [],
     )
 
 

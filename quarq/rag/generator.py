@@ -7,6 +7,7 @@ import time
 from quarq.config import QuarqConfig
 from quarq.llm.base import GenerationResult
 from quarq.llm.lmstudio import get_llm
+from quarq.rag.grounding import check_figures
 from quarq.rag.store import RetrievedChunk
 
 _SYSTEM_PROMPT = (
@@ -79,7 +80,8 @@ def answer(
         portfolio_context: Optional portfolio summary to include in the prompt.
 
     Returns:
-        GenerationResult with the answer text, model, backend, and latency.
+        GenerationResult with the answer text, model, backend, latency, and the
+        figure check: every figure in the answer is looked up in the prompt.
 
     Raises:
         RAGError: If no LLM backend is available or generation fails.
@@ -91,9 +93,12 @@ def answer(
     response_text = llm.generate(prompt, system=_SYSTEM_PROMPT)
     latency_ms = int((time.monotonic() - start) * 1000)
 
+    grounding = check_figures(response_text, prompt)
     return GenerationResult(
         answer=response_text,
         model=llm.model,
         backend=llm.name,
         latency_ms=latency_ms,
+        figures_checked=grounding.checked,
+        unsupported_figures=grounding.unsupported,
     )

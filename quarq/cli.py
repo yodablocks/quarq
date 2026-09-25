@@ -228,6 +228,21 @@ def _cmd_query(question: str, doc_type: str | None, k: int) -> None:
         result = answer(question, chunks, cfg)
 
     console.print(Panel(result.answer, title="[bold]Answer[/bold]", border_style="green"))
+    if result.unsupported_figures:
+        console.print(
+            Panel(
+                "These figures in the answer do not appear in the passages the model was "
+                f"shown: [bold]{', '.join(result.unsupported_figures)}[/bold]. Check them "
+                "against the sources before using them.",
+                title="[bold yellow]Unverified figures[/bold yellow]",
+                border_style="yellow",
+            )
+        )
+    elif result.figures_checked:
+        console.print(
+            f"[dim]All {result.figures_checked} figure(s) in the answer appear in the "
+            "passages the model was shown.[/dim]"
+        )
 
     citation_table = Table(title="Sources", show_header=True, header_style="bold cyan")
     citation_table.add_column("Source")
