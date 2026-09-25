@@ -202,8 +202,33 @@ def test_retriever_overfetches_candidates_for_dedupe() -> None:
     retriever = Retriever(store=mock_store, embedder=mock_embedder, cfg=cfg)
     retriever.retrieve("test query", k=5)
 
-    assert mock_store.query.call_args.kwargs["k"] == 5 * RETRIEVAL_OVERFETCH_FACTOR
+    requested = mock_store.query.call_args.kwargs["k"]
+    assert requested >= 5 * RETRIEVAL_OVERFETCH_FACTOR
     assert RETRIEVAL_OVERFETCH_FACTOR > 1
+
+
+def test_retriever_requests_at_least_the_candidate_pool() -> None:
+    """Small k still asks the store for the full candidate pool, so the search is wide enough.
+
+    ChromaDB's HNSW search only explores about as many neighbours as results requested;
+    asking for 20 missed true top-20 chunks on 7 of 28 gold questions, asking for 500 missed none.
+    """
+    from quarq.constants import RETRIEVAL_CANDIDATE_POOL, RETRIEVAL_OVERFETCH_FACTOR
+    from quarq.rag.retriever import Retriever
+
+    cfg = _make_config()
+    mock_store = MagicMock()
+    mock_embedder = MagicMock()
+    mock_embedder.embed_query.return_value = [0.1, 0.2, 0.3]
+    mock_store.query.return_value = []
+    retriever = Retriever(store=mock_store, embedder=mock_embedder, cfg=cfg)
+
+    retriever.retrieve("test query", k=5)
+    assert mock_store.query.call_args.kwargs["k"] == RETRIEVAL_CANDIDATE_POOL
+
+    big_k = RETRIEVAL_CANDIDATE_POOL  # large k: the over-fetch factor wins
+    retriever.retrieve("test query", k=big_k)
+    assert mock_store.query.call_args.kwargs["k"] == big_k * RETRIEVAL_OVERFETCH_FACTOR
 
 
 def test_retriever_returns_empty_when_no_results() -> None:
