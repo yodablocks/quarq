@@ -7,8 +7,12 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pdfplumber
+
+if TYPE_CHECKING:
+    from quarq.rag.manifest import Manifest
 
 logger = logging.getLogger(__name__)
 
@@ -123,17 +127,25 @@ def _extract_pdf_date(metadata: dict, filename: str) -> str:
     return "unknown"
 
 
-def load_pdf(path: Path, chunk_size: int = 512, chunk_overlap: int = 64) -> list[Document]:
+def load_pdf(
+    path: Path,
+    chunk_size: int = 512,
+    chunk_overlap: int = 64,
+    manifest: Manifest | None = None,
+) -> list[Document]:
     """Extract text from a PDF and return it as chunked Documents with metadata.
 
     Args:
         path: Absolute path to the PDF file.
         chunk_size: Maximum words per chunk (defaults to 512).
         chunk_overlap: Word overlap between consecutive chunks (defaults to 64).
+        manifest: Optional corpus manifest. If it has an entry for this file, its
+            period, publication date and doc_type override the inferred values.
 
     Returns:
         List of Document instances, each with all five required metadata fields:
-        source, doc_type, date, page, chunk_id.
+        source, doc_type, date, page, chunk_id (plus period_start and period_end
+        when the manifest covers the file).
 
     Raises:
         RAGError: If the PDF cannot be opened or text cannot be extracted.
@@ -142,6 +154,8 @@ def load_pdf(path: Path, chunk_size: int = 512, chunk_overlap: int = 64) -> list
 
     filename = path.name
     doc_type = _infer_doc_type(filename)
+    entry = (manifest or {}).get(filename)
+    overrides = entry.metadata() if entry is not None else {}
 
     try:
         with pdfplumber.open(path) as pdf:
@@ -167,6 +181,7 @@ def load_pdf(path: Path, chunk_size: int = 512, chunk_overlap: int = 64) -> list
                             "date": pdf_date,
                             "page": pnum,
                             "chunk_id": chunk_id,
+                            **overrides,
                         },
                     )
                     all_chunks.append(doc)
@@ -181,6 +196,7 @@ def load_folder(
     folder: Path,
     chunk_size: int = 512,
     chunk_overlap: int = 64,
+    manifest: Manifest | None = None,
 ) -> list[Document]:
     """Load and chunk all PDFs in a folder recursively.
 
@@ -188,6 +204,7 @@ def load_folder(
         folder: Path to search for PDF files.
         chunk_size: Maximum words per chunk.
         chunk_overlap: Word overlap between consecutive chunks.
+        manifest: Optional corpus manifest, passed to load_pdf for each file.
 
     Returns:
         Flat list of Document chunks from all found PDFs.
@@ -199,7 +216,9 @@ def load_folder(
                 logger.warning("Skipping non-PDF file: %s", pdf_path)
             continue
         try:
-            docs = load_pdf(pdf_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+            docs = load_pdf(
+                pdf_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap, manifest=manifest
+            )
             documents.extend(docs)
             logger.info("Loaded %d chunks from %s", len(docs), pdf_path.name)
         except Exception as exc:

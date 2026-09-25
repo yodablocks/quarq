@@ -268,8 +268,10 @@ def _cmd_rag_add(path_str: str) -> None:
     """
     from rich.progress import Progress, SpinnerColumn, TextColumn
 
+    from quarq.exceptions import RAGError
     from quarq.rag.embedder import Embedder
     from quarq.rag.loader import load_folder, load_pdf
+    from quarq.rag.manifest import find_manifest, load_manifest
     from quarq.rag.store import VectorStore
 
     cfg = load_config()
@@ -279,13 +281,22 @@ def _cmd_rag_add(path_str: str) -> None:
         console.print(f"[red]Path does not exist: {target}[/red]")
         sys.exit(1)
 
+    manifest_path = find_manifest(target)
+    try:
+        manifest = load_manifest(manifest_path) if manifest_path else None
+    except RAGError as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="Invalid manifest", border_style="red"))
+        sys.exit(1)
+    if manifest_path and manifest is not None:
+        console.print(f"[dim]Using manifest {manifest_path} ({len(manifest)} documents)[/dim]")
+
     with console.status("[bold cyan]Loading documents...", spinner="dots"):
         if target.is_file():
             documents = load_pdf(target, chunk_size=cfg.rag.chunk_size,
-                                 chunk_overlap=cfg.rag.chunk_overlap)
+                                 chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest)
         else:
             documents = load_folder(target, chunk_size=cfg.rag.chunk_size,
-                                    chunk_overlap=cfg.rag.chunk_overlap)
+                                    chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest)
 
     if not documents:
         console.print("[yellow]No documents found to index.[/yellow]")
@@ -311,6 +322,48 @@ def _cmd_rag_add(path_str: str) -> None:
         f"({len(documents) - added} duplicates skipped). "
         f"Corpus now has [bold]{store.count()}[/bold] chunks."
     )
+
+
+def _cmd_rag_manifest(path_str: str) -> int:
+    """Apply a corpus manifest to chunks already in the index, without re-embedding.
+
+    Args:
+        path_str: The manifest file, or the folder that contains it.
+
+    Returns:
+        Process exit code (0 on success).
+    """
+    from quarq.constants import CORPUS_MANIFEST_FILENAME
+    from quarq.exceptions import RAGError
+    from quarq.rag.manifest import apply_manifest, find_manifest, load_manifest
+    from quarq.rag.store import VectorStore
+
+    target = Path(path_str).expanduser().resolve()
+    manifest_path = target if target.is_file() else find_manifest(target)
+    if manifest_path is None:
+        console.print(f"[red]No {CORPUS_MANIFEST_FILENAME} found at {target}[/red]")
+        return 1
+
+    try:
+        manifest = load_manifest(manifest_path)
+        report = apply_manifest(VectorStore(load_config()), manifest)
+    except RAGError as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="Manifest failed", border_style="red"))
+        return 1
+
+    table = Table(title=f"Manifest applied: {manifest_path.name}")
+    table.add_column("Source")
+    table.add_column("Chunks updated", justify="right")
+    for source, n in report.updated.items():
+        table.add_row(source, str(n))
+    console.print(table)
+    if report.not_indexed:
+        missing = ", ".join(report.not_indexed)
+        console.print(f"[yellow]In the manifest but not indexed: {missing}[/yellow]")
+    if report.not_in_manifest:
+        unlisted = ", ".join(report.not_in_manifest)
+        console.print(f"[yellow]Indexed but missing from the manifest: {unlisted}[/yellow]")
+    return 0
 
 
 def _cmd_report(
@@ -656,6 +709,10 @@ def main() -> None:
     rag_sub.add_parser("status", help="Print corpus statistics")
     rag_add_parser = rag_sub.add_parser("add", help="Index a file or folder")
     rag_add_parser.add_argument("path", help="Path to a PDF file or folder")
+    rag_manifest_parser = rag_sub.add_parser(
+        "manifest", help="Apply the corpus manifest to chunks already indexed (no re-embedding)"
+    )
+    rag_manifest_parser.add_argument("path", help="Manifest file, or the folder containing it")
 
     # quarq config
     config_parser = subparsers.add_parser("config", help="View or update quarq configuration")
@@ -723,6 +780,10 @@ def main() -> None:
                 _cmd_rag_status()
             elif args.rag_command == "add":
                 _cmd_rag_add(args.path)
+            elif args.rag_command == "manifest":
+                code = _cmd_rag_manifest(args.path)
+                if code:
+                    sys.exit(code)
             else:
                 rag_parser.print_help()
         elif args.command == "config":

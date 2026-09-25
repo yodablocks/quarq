@@ -20,3 +20,14 @@ EVAL_UNKNOWN_REFS_SHOWN: int = 10
 # per (source, page), so k distinct pages can still be returned when one page has several
 # matching chunks. The 2026-09-25 baseline saw up to 4 chunks from a single page in a top 5.
 RETRIEVAL_OVERFETCH_FACTOR: int = 4
+
+# Corpus manifest: per-document metadata (period covered, publication date, doc_type)
+# kept next to the PDFs. `quarq rag add` reads it from the folder being indexed (or the
+# file's parent folder); `quarq rag manifest` applies it to chunks already indexed.
+CORPUS_MANIFEST_FILENAME: str = "quarq_manifest.toml"
+
+# Allowed doc_type values. The loader's filename rules and manifest overrides must use
+# one of these, so a typo can't silently create a new type that breaks doc_type filters.
+DOC_TYPES: frozenset[str] = frozenset(
+    {"ecb_fsr", "bdf_fsr", "amf_sfdr", "prospectus", "factsheet", "macro"}
+)
