@@ -204,6 +204,52 @@ class VectorStore:
             logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0
 
+    def list_sources(self) -> set[str]:
+        """Return the set of source filenames in the collection.
+
+        Returns:
+            Source filenames.
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        try:
+            results = self._collection.get(include=["metadatas"])
+        except Exception as exc:
+            raise RAGError(f"VectorStore.list_sources failed: {exc}") from exc
+        return {str(m["source"]) for m in results.get("metadatas") or [] if m.get("source")}
+
+    def update_source_metadata(
+        self, source: str, fields: dict[str, str | int | float | bool]
+    ) -> int:
+        """Merge fields into the metadata of every chunk from one source, without re-embedding.
+
+        Each chunk's full metadata is read, merged in Python, and written back whole,
+        so existing keys are kept whatever ChromaDB's own merge behaviour is.
+
+        Args:
+            source: Source filename whose chunks to update.
+            fields: Keys to add or overwrite (ChromaDB scalar values only).
+
+        Returns:
+            Number of chunks updated.
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        try:
+            results = self._collection.get(where={"source": source}, include=["metadatas"])
+            ids = results.get("ids") or []
+            if not ids:
+                return 0
+            merged = [{**meta, **fields} for meta in results["metadatas"]]
+            self._collection.update(ids=ids, metadatas=merged)
+        except Exception as exc:
+            raise RAGError(
+                f"VectorStore.update_source_metadata failed for {source}: {exc}"
+            ) from exc
+        return len(ids)
+
     def list_chunks(self) -> list[RetrievedChunk]:
         """Return every stored chunk with its metadata.
 

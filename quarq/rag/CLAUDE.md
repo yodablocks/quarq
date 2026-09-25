@@ -12,6 +12,7 @@ Collection: `quarq_rag_v1`
 | `store.py` | ChromaDB wrapper, upsert and query |
 | `retriever.py` | top-k with min_similarity filter, metadata filters |
 | `generator.py` | prompt builder, dual-agent LLM routing, citations |
+| `manifest.py` | corpus manifest: per-document period, publication date, doc_type overrides |
 
 ## Embedder prefix rule (enforce strictly)
 
@@ -30,9 +31,19 @@ All five fields must be present on every Document before upsert:
 |---|---|---|
 | `source` | str | filename only |
 | `doc_type` | str | `ecb_fsr` \| `amf_sfdr` \| `prospectus` \| `factsheet` \| `bdf_fsr` \| `macro` |
-| `date` | str | publication date or "unknown" |
+| `date` | str | publication date (from the manifest when set; otherwise PDF creation date, a filename year, or "unknown") |
 | `page` | int | page number |
 | `chunk_id` | str | sha256 of content |
+
+Optional, set by the corpus manifest (`quarq_manifest.toml` next to the PDFs):
+
+| Field | Type | Values |
+|---|---|---|
+| `period_start` | str | ISO date, first day of the period the document covers |
+| `period_end` | str | ISO date, last day of that period |
+
+`quarq rag manifest <folder>` writes these onto chunks already indexed, without
+re-embedding. `quarq rag add` applies them when indexing.
 
 ## Retrieval defaults (from config)
 
