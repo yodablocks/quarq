@@ -86,7 +86,10 @@ def render_table(result: EvalResult) -> Table:
 
 
 def report_paths(result: EvalResult, out_dir: Path) -> tuple[Path, Path]:
-    """Return timestamped JSON and Markdown paths for a run.
+    """Return timestamped JSON and Markdown paths for a run that don't exist yet.
+
+    The timestamp has one-second resolution, so a run that finishes in the same second
+    as an earlier one gets a "-2", "-3"... suffix instead of colliding with it.
 
     Args:
         result: A completed eval run.
@@ -95,7 +98,11 @@ def report_paths(result: EvalResult, out_dir: Path) -> tuple[Path, Path]:
     Returns:
         (json_path, markdown_path).
     """
-    stem = f"eval_report_{_stamp(result.generated_at)}"
+    base = f"eval_report_{_stamp(result.generated_at)}"
+    stem, n = base, 1
+    while (out_dir / f"{stem}.json").exists() or (out_dir / f"{stem}.md").exists():
+        n += 1
+        stem = f"{base}-{n}"
     return out_dir / f"{stem}.json", out_dir / f"{stem}.md"
 
 

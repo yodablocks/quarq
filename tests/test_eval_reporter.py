@@ -84,3 +84,18 @@ def test_render_table_mentions_every_k_and_mrr() -> None:
     assert "Precision@k" in out and "Recall@k" in out and "Hit@k" in out
     assert "MRR" in out
     assert "0.500" in out
+
+
+def test_report_paths_add_a_suffix_when_the_second_is_taken(tmp_path: Path) -> None:
+    """Two runs finishing in the same second get distinct files; nothing is overwritten."""
+    result = _result()
+    first_json, first_md = report_paths(result, tmp_path)
+    first_json.write_text("{}")
+    first_md.write_text("# first")
+
+    second_json, second_md = report_paths(result, tmp_path)
+
+    assert second_json != first_json and second_md != first_md
+    assert second_json.name == first_json.name.replace(".json", "-2.json")
+    assert second_md.name == first_md.name.replace(".md", "-2.md")
+    assert first_md.read_text() == "# first"
