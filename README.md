@@ -11,7 +11,7 @@ quarq computes risk metrics for a CAC 40 portfolio, answers questions from ECB, 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-![quarq report for the demo CAC 40 portfolio: headline metrics and cumulative returns against the benchmark](assets/report-overview.png)
+![quarq report for the demo CAC 40 portfolio: headline metrics and cumulative returns against the benchmark](assets/report-overview-2025-26.png)
 
 ---
 
@@ -52,7 +52,7 @@ quarq query "Que dit la BCE sur la concentration du CAC 40 ?"
 quarq report --portfolio ./demo/portfolio.toml --narrative --open
 ```
 
-The demo portfolio is a three-sleeve CAC 40 book (Growth, Defensive, Financial) over 2024.
+The demo portfolio is a three-sleeve CAC 40 book (Growth, Defensive, Financial) over the 12 months from September 2025 to August 2026.
 
 ## Example
 
@@ -61,8 +61,8 @@ A portfolio is a TOML file of weighted sleeves:
 ```toml
 name = "CAC40 Multi-Sleeve Demo"
 benchmark = "^FCHI"
-start = "2024-01-01"
-end = "2024-12-31"
+start = "2025-09-01"
+end = "2026-08-31"
 currency = "EUR"
 
 [[sleeve]]
@@ -77,7 +77,7 @@ weight = 0.40
 
 `quarq report` turns it into a self-contained HTML report. Alongside the metrics and return charts above, it shows how the holdings move together and how the weights break down by sleeve:
 
-![Correlation matrix of the seven holdings and a treemap of portfolio weights by sleeve](assets/report-allocation.png)
+![Correlation matrix of the seven holdings and a treemap of portfolio weights by sleeve](assets/report-allocation-2025-26.png)
 
 The building blocks are also usable as a library:
 
