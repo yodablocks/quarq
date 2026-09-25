@@ -165,25 +165,26 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 
 ## Retrieval quality
 
-`quarq eval` checks, for each question in a human-reviewed gold set, whether retrieval returns the page that answers it. The run is deterministic and makes no LLM calls. Results on 28 questions over a 23-document corpus (default settings: top 5, 0.35 floor), 25 September 2026:
+`quarq eval` checks, for each question in a human-reviewed gold set, whether retrieval returns the page that answers it. The run is deterministic and makes no LLM calls. Current results on 38 questions over a 23-document corpus (default settings: top 5, 0.35 floor), 25 September 2026:
 
 | Retrieval | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
-| Baseline, all documents | 18 / 28 (64%) | 23 / 28 (82%) | 23 / 28 (82%) | 0.71 |
-| Baseline, filtered to the question's `doc_type` | 19 / 28 (68%) | 24 / 28 (86%) | 25 / 28 (89%) | 0.76 |
-| One result per page, all documents | 18 / 28 (64%) | 23 / 28 (82%) | 25 / 28 (89%) | 0.75 |
-| One result per page, filtered to `doc_type` | 19 / 28 (68%) | 25 / 28 (89%) | 26 / 28 (93%) | 0.79 |
+| All documents | 22 / 38 (58%) | 32 / 38 (84%) | 35 / 38 (92%) | 0.72 |
+| Filtered to the question's `doc_type` | 23 / 38 (61%) | 34 / 38 (89%) | 36 / 38 (95%) | 0.75 |
 
-Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page. "One result per page" is the current behaviour: the baseline often filled the top 5 with several chunks from the same page, so fewer distinct pages were considered. ChromaDB's search is approximate, and its settings only take effect when a collection is created: the first index, built with the defaults, left true neighbours out for 7 of the 28 questions. The current collection (`quarq_rag_v2`) is built with explicit settings and leaves none out. Every `quarq eval` run checks this: it compares the index with an exact search over the same chunks and reports how many questions it leaves true neighbours out for (today 0 of 28) and whether the final pages match exact search (28 of 28).
+History on the first 28 questions: returning one result per page (instead of several chunks of the same page) raised Hit@5 from 23 to 25 and MRR from 0.71 to 0.75. The 10 later questions are year-sensitive (the same fact in the 2023, 2024 and 2025 editions) and harder, which is why the overall scores dip.
+
+Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page. ChromaDB's search is approximate, and its settings only take effect when a collection is created: the first index, built with the defaults, left true neighbours out for 7 of the 28 questions. The current collection (`quarq_rag_v2`) is built with explicit settings and leaves none out. Every `quarq eval` run checks this: it compares the index with an exact search over the same chunks and reports how many questions it leaves true neighbours out for (today 0 of 38) and whether the final pages match exact search (38 of 38).
 
 What the misses show:
 
-- **Another edition can outrank the right one.** Of 6 questions whose answer depends on the year or edition, 2 rank another edition first: the 2023 annual report above the 2024 one for a 2024 figure, and the June 2026 CAC 40 composition above the March 2026 factsheet. The right page is second in both, but the embedder doesn't weigh the year in the question, so an answer could cite the wrong year's number. The document dates stored today come from PDF metadata (file creation, not the period covered), so they can't fix this as they are.
+- **Another edition can outrank the right one, but rarely.** Of 16 questions whose answer depends on the year or edition, 14 put the right edition first. 2 rank another edition first: the 2023 annual report above the 2024 one for a 2024 figure, and the June 2026 CAC 40 composition above the March 2026 factsheet. The right page is second in both, but an answer could cite the wrong year's number. The corpus manifest records each document's period, which a year-aware ranking can use.
+- **The right document, the wrong page.** The more common miss on year questions: the correct edition comes first, but through another page (a summary or table of contents) rather than the one with the figure.
 - **Neighbouring pages win.** In three ECB questions, nearby pages on the same topic (for example p112 for an answer on p113) ranked above the answer page. In one of them, the answer page still isn't in the top 5.
 - **Answers in footnotes lose to the main text.** One ECB answer appears only in a footnote, and retrieval returned the main-text pages about the same April 2025 episode instead.
 - **The similarity floor never filters.** Every question gets as many results as it asks for (only the 4-page factsheet set returns fewer), because retrieved chunks score far above 0.35 (about 0.8 to 0.9 in spot checks).
 
-**Caveat:** 28 questions is small (one question is about 3.6 points), and they were reviewed by a single person. They were also drafted by an LLM from the very chunks being searched, which tends to share wording with the page and flatter retrieval. Treat these numbers as a first baseline to compare changes against, not as expected accuracy. The gold set is in [`quarq/eval/datasets/quarq_gold_v1.jsonl`](quarq/eval/datasets/quarq_gold_v1.jsonl).
+**Caveat:** 38 questions is small (one question is about 2.6 points), and they were reviewed by a single person. 28 were drafted by an LLM from the very chunks being searched, which tends to share wording with the page and flatter retrieval; the 10 year-sensitive ones were drafted from a corpus search, with every page stating the answer listed. Treat these numbers as a first baseline to compare changes against, not as expected accuracy. The gold set is in [`quarq/eval/datasets/quarq_gold_v1.jsonl`](quarq/eval/datasets/quarq_gold_v1.jsonl).
 
 ## Configuration
 
@@ -211,7 +212,7 @@ The tools call quarq over HTTP and default to `host.docker.internal:8000`, which
 quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it has not been used in production. Known limitations:
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
-- **Retrieval misses the right page about a third of the time on the first try.** The answer page ranks first for 18 of 28 questions and is in the top 5 for 25 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
+- **Retrieval misses the right page about 40% of the time on the first try.** The answer page ranks first for 22 of 38 questions and is in the top 5 for 35 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
 - **Scanned PDFs aren't searchable.** quarq reads the PDF's text layer and has no OCR, so pages that are only images (scans, full-page photos, infographics) are not indexed. `quarq rag add` warns about them and `quarq rag coverage` lists them; in the current corpus that's 28 of 1,973 pages, and no document is scanned. Numbers inside charts are not searchable either.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
 - **The test suite is fully mocked.** It needs no network, server or LM Studio, which also means it doesn't prove the live APIs still answer the same way. End-to-end checks against a live stack are manual.
