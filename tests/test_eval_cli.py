@@ -28,8 +28,13 @@ class _Store:
     def __init__(self, cfg: QuarqConfig) -> None:
         pass
 
+    legacy: dict[str, int] = {}
+
     def count(self) -> int:
         return self.chunks
+
+    def legacy_collection_counts(self) -> dict[str, int]:
+        return self.legacy
 
     def list_chunks(self) -> list[RetrievedChunk]:
         return [
@@ -87,6 +92,18 @@ def test_cmd_eval_empty_corpus_returns_1(
     monkeypatch.setattr(_Store, "chunks", 0)
 
     assert cli._cmd_eval(str(tmp_path / "gold.jsonl"), "1,3,5", str(tmp_path), False) == 1
+
+
+def test_cmd_eval_empty_corpus_suggests_migrate_when_legacy_exists(
+    tmp_path: Path, patched, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(_Store, "chunks", 0)
+    monkeypatch.setattr(_Store, "legacy", {"quarq_rag_v1": 4235})
+
+    assert cli._cmd_eval(str(tmp_path / "gold.jsonl"), "1,3,5", str(tmp_path), False) == 1
+    out = " ".join(capsys.readouterr().out.split())  # undo console line wrapping
+    assert "quarq rag migrate" in out
+    assert "4235" in out
 
 
 def test_cmd_eval_bad_dataset_returns_1(tmp_path: Path, patched) -> None:

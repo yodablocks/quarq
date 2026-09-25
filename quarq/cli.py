@@ -258,6 +258,25 @@ def _cmd_rag_status() -> None:
     table.add_row("Collection", RAG_COLLECTION_NAME)
     table.add_row("Chroma path", cfg.rag.chroma_path)
     console.print(table)
+    _print_migrate_hint(store, chunk_count)
+
+
+def _print_migrate_hint(store: object, chunk_count: int) -> None:
+    """Tell the user to run `quarq rag migrate` if the corpus is only in a legacy collection.
+
+    Args:
+        store: The opened VectorStore.
+        chunk_count: Chunks in the current collection.
+    """
+    if chunk_count:
+        return
+    legacy = {name: n for name, n in store.legacy_collection_counts().items() if n}  # type: ignore[attr-defined]
+    if legacy:
+        found = ", ".join(f"{name} ({n} chunks)" for name, n in legacy.items())
+        console.print(
+            f"[yellow]{RAG_COLLECTION_NAME} is empty but {found} exists. "
+            "Run [bold]quarq rag migrate[/bold] to copy it (no re-embedding).[/yellow]"
+        )
 
 
 def _cmd_rag_add(path_str: str) -> None:
@@ -322,6 +341,38 @@ def _cmd_rag_add(path_str: str) -> None:
         f"({len(documents) - added} duplicates skipped). "
         f"Corpus now has [bold]{store.count()}[/bold] chunks."
     )
+
+
+def _cmd_rag_migrate() -> int:
+    """Copy legacy collections into the current one, without re-embedding.
+
+    Returns:
+        Process exit code (0 on success).
+    """
+    from quarq.exceptions import RAGError
+    from quarq.rag.store import VectorStore
+
+    try:
+        store = VectorStore(load_config())
+        legacy = store.legacy_collection_counts()
+        if not legacy:
+            console.print("No legacy collection found; nothing to migrate.")
+            return 0
+        table = Table(title=f"Migrated into {RAG_COLLECTION_NAME}")
+        table.add_column("From")
+        table.add_column("Chunks copied", justify="right")
+        with console.status("[bold cyan]Copying chunks...", spinner="dots"):
+            for name in legacy:
+                table.add_row(name, str(store.migrate_from(name)))
+    except RAGError as exc:
+        console.print(Panel(f"[red]{exc}[/red]", title="Migration failed", border_style="red"))
+        return 1
+    console.print(table)
+    console.print(
+        f"{RAG_COLLECTION_NAME} now has [bold]{store.count()}[/bold] chunks. "
+        "The legacy collection is kept; nothing was deleted."
+    )
+    return 0
 
 
 def _cmd_rag_manifest(path_str: str) -> int:
@@ -593,6 +644,7 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
         store = VectorStore(cfg)
         chunk_count = store.count()
         if chunk_count == 0:
+            _print_migrate_hint(store, chunk_count)
             console.print(
                 Panel(
                     "[yellow]RAG corpus is empty. Run: [bold]quarq rag add ./docs/[/bold] "
@@ -717,6 +769,9 @@ def main() -> None:
     rag_sub.add_parser("status", help="Print corpus statistics")
     rag_add_parser = rag_sub.add_parser("add", help="Index a file or folder")
     rag_add_parser.add_argument("path", help="Path to a PDF file or folder")
+    rag_sub.add_parser(
+        "migrate", help="Copy the previous collection into the current one (no re-embedding)"
+    )
     rag_manifest_parser = rag_sub.add_parser(
         "manifest", help="Apply the corpus manifest to chunks already indexed (no re-embedding)"
     )
@@ -788,6 +843,10 @@ def main() -> None:
                 _cmd_rag_status()
             elif args.rag_command == "add":
                 _cmd_rag_add(args.path)
+            elif args.rag_command == "migrate":
+                code = _cmd_rag_migrate()
+                if code:
+                    sys.exit(code)
             elif args.rag_command == "manifest":
                 code = _cmd_rag_manifest(args.path)
                 if code:
