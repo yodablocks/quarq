@@ -126,7 +126,7 @@ flowchart LR
 ```
 
 - **Data path:** providers fetch prices and rates, `portfolio.py` computes the metrics, the reporting agent turns them into prose, and `report/` renders the HTML.
-- **Research path:** PDFs are chunked with metadata (`source`, `doc_type`, `date`, `page`, `chunk_id`), embedded and stored. A query takes the 20 nearest chunks above a 0.35 similarity floor, re-ranks the top 10 with a cross-encoder that reads the question and each passage together, and returns the 5 best distinct pages (one chunk per page). The research agent is prompted with the best 3 and told to answer only from them, and the answer carries citations for every retrieved chunk.
+- **Research path:** PDFs are chunked with metadata (`source`, `doc_type`, `date`, `page`, `chunk_id`), embedded and stored. A query takes the 20 nearest chunks above a 0.35 similarity floor, re-ranks the top 10 with a cross-encoder that reads the question and each passage together, and returns the 5 best distinct pages (one chunk per page). When the question names an exact date ("as of March 31, 2026"), documents whose manifest period covers that date come first. The research agent is prompted with the best 3 and told to answer only from them, and the answer carries citations for every retrieved chunk.
 - **LLM selection:** quarq uses LM Studio when it is reachable. If not, and `ANTHROPIC_API_KEY` is set, it falls back to the Claude API. With neither, LLM features fail with a clear error and the metrics still work.
 
 Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`, `prospectus`, `factsheet`, or `macro` by default. Filter queries on it with `--doc-type`.
@@ -169,12 +169,12 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 
 | Retrieval | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
-| **Re-ranked (default)**, all documents | **33 / 38 (87%)** | 35 / 38 (92%) | 36 / 38 (95%) | **0.90** |
-| **Re-ranked (default)**, filtered to the question's `doc_type` | **33 / 38 (87%)** | 36 / 38 (95%) | 37 / 38 (97%) | **0.91** |
+| **Re-ranked + date-aware (default)**, all documents | **33 / 38 (87%)** | 35 / 38 (92%) | 36 / 38 (95%) | **0.90** |
+| **Re-ranked + date-aware (default)**, filtered to `doc_type` | **33 / 38 (87%)** | 36 / 38 (95%) | 37 / 38 (97%) | **0.91** |
 | Embedding order only (`rerank = false`), all documents | 22 / 38 (58%) | 32 / 38 (84%) | 35 / 38 (92%) | 0.72 |
 | Embedding order only, filtered to `doc_type` | 23 / 38 (61%) | 34 / 38 (89%) | 36 / 38 (95%) | 0.75 |
 
-The cross-encoder re-ranker moved 12 questions up and 1 down. Up: the answer page went to first place for questions where a summary page, a neighbouring page or another edition used to win, including one it had missed entirely. Down: one edition confusion (a June 2026 index composition above the March 2026 factsheet).
+Compared with embedding order only, re-ranking plus date-aware ordering moves 12 questions up and none down. The answer page went to first place for questions where a summary page, a neighbouring page or another edition used to win, including one that was missed entirely. When a question names an exact date, documents whose manifest period covers it come first: that fixed the last edition confusion (a June 2026 index composition ranking above the March 2026 factsheet for a March 31 question).
 
 History on the first 28 questions: returning one result per page (instead of several chunks of the same page) raised Hit@5 from 23 to 25 and MRR from 0.71 to 0.75. The 10 later questions are year-sensitive (the same fact in the 2023, 2024 and 2025 editions) and harder, which is why the overall scores dip.
 
@@ -182,7 +182,7 @@ Hit@k is the share of questions whose answer page is in the top k. MRR averages 
 
 What the misses show:
 
-- **Another edition can still outrank the right one.** Without re-ranking, 2 of 16 year- or edition-sensitive questions ranked another edition first. The re-ranker fixes one (the 2023 annual report no longer beats the 2024 one for a 2024 figure); the June 2026 CAC 40 composition still beats the March 2026 factsheet. The corpus manifest records each document's period, which a year-aware step could use.
+- **Editions are now kept apart.** Without re-ranking, 2 of 16 year- or edition-sensitive questions ranked another edition first. The re-ranker fixes one (the 2023 annual report no longer beats the 2024 one for a 2024 figure) and date-aware ordering the other. The date rule only applies to exact dates; "in April 2025" or "at the end of 2024" leave the order alone, because the answer is often in a later document. Documents without a manifest period are never promoted.
 - **The right document, the wrong page.** Without re-ranking, the most common miss on year questions: the correct edition came first, but through a summary or contents page. The re-ranker fixes most of these.
 - **Neighbouring pages win.** In three ECB questions, nearby pages on the same topic (for example p112 for an answer on p113) ranked above the answer page. In one of them, the answer page still isn't in the top 5.
 - **Answers in footnotes lose to the main text.** One ECB answer appears only in a footnote, and retrieval returned the main-text pages about the same April 2025 episode instead.
@@ -209,6 +209,7 @@ rerank = true                              # false: embedding order only (faster
 reranker_model = "BAAI/bge-reranker-v2-m3" # multilingual, Apache-2.0, ~2.2 GB, downloaded on first use
 rerank_top_n = 10                          # candidates re-ranked per query
 rerank_max_length = 512                    # tokens per question + passage pair
+date_aware = true                          # exact dates in a question favour documents covering them
 ```
 
 `FRED_API_KEY` is read at load time and never written back to `config.toml`. Without it, quarq uses the configured fallback risk-free rate (3%). ECB, OECD and the other providers need no key.

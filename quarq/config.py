@@ -70,6 +70,8 @@ class RAGConfig(BaseModel):
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
     rerank_top_n: Annotated[int, Field(ge=1)] = 10
     rerank_max_length: Annotated[int, Field(ge=16)] = 512
+    # When a question names an exact date, put documents whose manifest period covers it first.
+    date_aware: bool = True
 
 
 class PortfolioConfig(BaseModel):

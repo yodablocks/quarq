@@ -97,6 +97,7 @@ def config_snapshot(cfg: QuarqConfig) -> dict[str, object]:
         "rerank": cfg.rag.rerank,
         "reranker_model": cfg.rag.reranker_model if cfg.rag.rerank else None,
         "rerank_top_n": cfg.rag.rerank_top_n if cfg.rag.rerank else None,
+        "date_aware": cfg.rag.date_aware,
         "collection": RAG_COLLECTION_NAME,
     }
 
