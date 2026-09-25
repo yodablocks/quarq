@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from quarq.config import QuarqConfig
 from quarq.constants import DEFAULT_K_VALUES, EVAL_UNKNOWN_REFS_SHOWN
 from quarq.eval.dataset import GoldItem, Ref, load_gold, unknown_gold_refs
+from quarq.eval.index_check import IndexCheck
 from quarq.eval.reporter import report_paths, to_json, to_markdown
 from quarq.eval.runner import EvalResult, RetrieverLike, run_eval
 from quarq.exceptions import EvalError
@@ -48,6 +50,7 @@ def evaluate(
     k_values: tuple[int, ...] = DEFAULT_K_VALUES,
     use_doc_type_filter: bool = False,
     known_refs: set[Ref] | None = None,
+    index_checker: Callable[[list[GoldItem]], IndexCheck] | None = None,
 ) -> tuple[EvalResult, Path, Path]:
     """Run one full evaluation and write its JSON and Markdown reports.
 
@@ -61,6 +64,8 @@ def evaluate(
         use_doc_type_filter: Restrict each retrieval to the item's doc_type.
         known_refs: When given, every gold (source, page) ref must be in this
             set, or evaluation is refused before any retrieval or report write.
+        index_checker: When given, called with the gold items; its IndexCheck
+            (vector index vs exact search) is added to the result and reports.
 
     Returns:
         (result, json_path, markdown_path).
@@ -82,6 +87,8 @@ def evaluate(
         k_values=k_values,
         use_doc_type_filter=use_doc_type_filter,
     )
+    if index_checker is not None:
+        result.index_check = index_checker(gold)
     json_path, md_path = report_paths(result, out_dir)
     to_json(result, json_path)
     to_markdown(result, md_path)

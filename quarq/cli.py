@@ -578,11 +578,13 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
     from pathlib import Path
 
     from quarq.eval.dataset import default_dataset_path
+    from quarq.eval.index_check import check_index
     from quarq.eval.pipeline import evaluate
-    from quarq.eval.reporter import render_table
+    from quarq.eval.reporter import index_check_line, render_table
     from quarq.eval.runner import parse_k_values
     from quarq.exceptions import EvalError, RAGError
     from quarq.rag.embedder import Embedder
+    from quarq.rag.exact import ExactStore
     from quarq.rag.retriever import Retriever
     from quarq.rag.store import VectorStore
 
@@ -600,9 +602,9 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
                 )
             )
             return 1
-        retriever = Retriever(
-            store=store, embedder=Embedder(model_name=cfg.embedder.model), cfg=cfg
-        )
+        embedder = Embedder(model_name=cfg.embedder.model)
+        retriever = Retriever(store=store, embedder=embedder, cfg=cfg)
+        k_values = parse_k_values(k)
         known_refs = {(c.source, int(c.page)) for c in store.list_chunks()}
         dataset_path = Path(dataset) if dataset else default_dataset_path()
         with console.status("[bold cyan]Running retrieval eval...", spinner="dots"):
@@ -612,15 +614,21 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
                 dataset_path=dataset_path,
                 out_dir=Path(out),
                 corpus_chunk_count=chunk_count,
-                k_values=parse_k_values(k),
+                k_values=k_values,
                 use_doc_type_filter=doc_type_filter,
                 known_refs=known_refs,
+                index_checker=lambda gold: check_index(
+                    gold, store, ExactStore(store), embedder, cfg,
+                    max_k=max(k_values), use_doc_type_filter=doc_type_filter,
+                ),
             )
     except (EvalError, RAGError) as exc:
         console.print(Panel(f"[red]{exc}[/red]", title="Eval failed", border_style="red"))
         return 1
 
     console.print(render_table(result))
+    if result.index_check is not None:
+        console.print(index_check_line(result.index_check))
     console.print(f"[dim]JSON: {json_path}\nMarkdown: {md_path}[/dim]")
     return 0
 

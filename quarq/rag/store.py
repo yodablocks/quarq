@@ -204,6 +204,29 @@ class VectorStore:
             logger.warning("VectorStore.count_sources failed: %s", exc)
             return 0
 
+    def all_records(self) -> dict[str, list]:
+        """Return every stored chunk's id, text, metadata and embedding.
+
+        Used to build an exact-search reference for the eval.
+
+        Returns:
+            Dict with parallel lists under "ids", "documents", "metadatas", "embeddings".
+
+        Raises:
+            RAGError: On any ChromaDB error.
+        """
+        try:
+            got = self._collection.get(include=["documents", "metadatas", "embeddings"])
+        except Exception as exc:
+            raise RAGError(f"VectorStore.all_records failed: {exc}") from exc
+        embeddings = got.get("embeddings")
+        return {
+            "ids": list(got.get("ids") or []),
+            "documents": list(got.get("documents") or []),
+            "metadatas": list(got.get("metadatas") or []),
+            "embeddings": [] if embeddings is None else [list(e) for e in embeddings],
+        }
+
     def list_sources(self) -> set[str]:
         """Return the set of source filenames in the collection.
 
