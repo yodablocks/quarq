@@ -7,12 +7,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+import numpy as np
+
 from quarq.config import QuarqConfig
 from quarq.constants import (
     RAG_COLLECTION_NAME,
     RAG_HNSW_CONFIG,
     RAG_LEGACY_COLLECTION_NAMES,
-    RAG_MIGRATE_BATCH_SIZE,
+    RAG_READ_BATCH_SIZE,
 )
 from quarq.exceptions import RAGError
 from quarq.rag.loader import Document
@@ -255,7 +257,7 @@ class VectorStore:
                 counts[name] = self._client.get_collection(name).count()
         return counts
 
-    def migrate_from(self, legacy_name: str, batch_size: int = RAG_MIGRATE_BATCH_SIZE) -> int:
+    def migrate_from(self, legacy_name: str, batch_size: int = RAG_READ_BATCH_SIZE) -> int:
         """Copy every chunk of a legacy collection into this one, without re-embedding.
 
         Ids, embeddings, text and metadata are copied as they are, so running it twice
@@ -298,27 +300,52 @@ class VectorStore:
         self._cached_count = None
         return copied
 
-    def all_records(self) -> dict[str, list]:
+    def all_records(self) -> dict[str, Any]:
         """Return every stored chunk's id, text, metadata and embedding.
 
-        Used to build an exact-search reference for the eval.
+        Used to build an exact-search reference for the eval. Embeddings come back as
+        one float32 numpy array: as Python lists of floats they would take about ten
+        times the memory (a Python float is a 24-byte object, not 4 bytes).
 
         Returns:
-            Dict with parallel lists under "ids", "documents", "metadatas", "embeddings".
+            Dict with parallel lists under "ids", "documents", "metadatas", and an
+            (n_chunks, dim) float32 array under "embeddings".
 
         Raises:
             RAGError: On any ChromaDB error.
         """
         try:
-            got = self._collection.get(include=["documents", "metadatas", "embeddings"])
+            total = self._collection.count()
+            ids: list[str] = []
+            documents: list[str] = []
+            metadatas: list[dict[str, Any]] = []
+            matrix: np.ndarray | None = None
+            # Batches keep the peak low: ChromaDB returns float64, so reading everything
+            # at once briefly holds a second, double-size copy of all embeddings.
+            for offset in range(0, total, RAG_READ_BATCH_SIZE):
+                got = self._collection.get(
+                    include=["documents", "metadatas", "embeddings"],
+                    limit=RAG_READ_BATCH_SIZE,
+                    offset=offset,
+                )
+                batch = got.get("embeddings")
+                if batch is None or len(batch) == 0:
+                    break
+                if matrix is None:
+                    matrix = np.empty((total, len(batch[0])), dtype=np.float32)
+                matrix[len(ids): len(ids) + len(batch)] = batch
+                ids.extend(got.get("ids") or [])
+                documents.extend(got.get("documents") or [])
+                metadatas.extend(got.get("metadatas") or [])
         except Exception as exc:
             raise RAGError(f"VectorStore.all_records failed: {exc}") from exc
-        embeddings = got.get("embeddings")
         return {
-            "ids": list(got.get("ids") or []),
-            "documents": list(got.get("documents") or []),
-            "metadatas": list(got.get("metadatas") or []),
-            "embeddings": [] if embeddings is None else [list(e) for e in embeddings],
+            "ids": ids,
+            "documents": documents,
+            "metadatas": metadatas,
+            "embeddings": (
+                np.zeros((0, 0), dtype=np.float32) if matrix is None else matrix[: len(ids)]
+            ),
         }
 
     def list_sources(self) -> set[str]:

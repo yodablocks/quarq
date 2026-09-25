@@ -5,8 +5,8 @@ than ones it returns. ExactStore scores every stored chunk, so it is the referen
 the eval compares the index against. It has VectorStore.query's interface, so the
 normal Retriever can run on top of it unchanged.
 
-It loads every embedding into memory once (4,235 x 1,024 floats is about 17 MB),
-so it is meant for evaluation, not for serving queries.
+It holds every embedding in memory as one float32 array (4,235 x 1,024 is about
+17 MB), so it is meant for evaluation, not for serving queries.
 """
 
 from __future__ import annotations
@@ -37,10 +37,10 @@ class ExactStore:
         self._ids: list[str] = records["ids"]
         self._documents: list[str] = records["documents"]
         self._metadatas: list[dict[str, Any]] = records["metadatas"]
-        matrix = np.asarray(records["embeddings"], dtype=np.float64)
+        matrix = np.asarray(records["embeddings"], dtype=np.float32)
         if matrix.size:
             norms = np.linalg.norm(matrix, axis=1, keepdims=True)
-            matrix = matrix / np.where(norms == 0, 1.0, norms)
+            matrix /= np.where(norms == 0, 1.0, norms)  # in place: no second copy
         self._matrix = matrix
 
     def count(self) -> int:
@@ -78,7 +78,7 @@ class ExactStore:
                 raise RAGError(f"ExactStore supports equality filters only, got {key}={value!r}")
             mask &= np.array([meta.get(key) == value for meta in self._metadatas])
 
-        query = np.asarray(embedding, dtype=np.float64)
+        query = np.asarray(embedding, dtype=np.float32)
         norm = np.linalg.norm(query)
         sims = self._matrix @ (query / norm if norm else query)
         candidates = np.flatnonzero(mask)
