@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{ portfolio_name | e }} — quarq Report</title>
+<title>{{ portfolio_name | e }} | quarq Report</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #F9FAFB; color: #111827; }
@@ -29,7 +29,7 @@
     <div class="meta">
       <span><strong>Report date:</strong> {{ report_date | e }}</span>
       <span><strong>Benchmark:</strong> {{ benchmark | e }}</span>
-      <span><strong>Period:</strong> {{ period_start | e }} — {{ period_end | e }}</span>
+      <span><strong>Period:</strong> {{ period_start | e }} to {{ period_end | e }}</span>
       <span><strong>Currency:</strong> {{ currency | e }}</span>
     </div>
   </header>
