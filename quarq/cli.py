@@ -191,7 +191,7 @@ def _cmd_query(question: str, doc_type: str | None, k: int) -> None:
     """
     from quarq.rag.embedder import Embedder
     from quarq.rag.generator import answer, format_citations
-    from quarq.rag.retriever import Retriever
+    from quarq.rag.retriever import build_retriever
     from quarq.rag.store import VectorStore
 
     cfg = load_config()
@@ -209,7 +209,7 @@ def _cmd_query(question: str, doc_type: str | None, k: int) -> None:
         return
 
     embedder = Embedder(model_name=cfg.embedder.model)
-    retriever = Retriever(store=store, embedder=embedder, cfg=cfg)
+    retriever = build_retriever(store, embedder, cfg)
 
     with console.status("[bold cyan]Retrieving relevant documents...", spinner="dots"):
         chunks = retriever.retrieve(question, k=k, doc_type=doc_type)
@@ -727,7 +727,9 @@ def _cmd_serve(host: str, port: int, reload: bool) -> None:
     uvicorn.run("quarq.api.app:app", host=host, port=port, reload=reload)
 
 
-def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> int:
+def _cmd_eval(
+    dataset: str | None, k: str, out: str, doc_type_filter: bool, no_rerank: bool = False
+) -> int:
     """Run the retrieval eval against the indexed corpus and write reports.
 
     Args:
@@ -735,6 +737,7 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
         k: Comma-separated k values, e.g. "1,3,5".
         out: Output directory for the timestamped reports.
         doc_type_filter: Restrict each retrieval to the item's doc_type.
+        no_rerank: Evaluate without the cross-encoder re-ranker, for comparison.
 
     Returns:
         0 on success, 1 on a handled failure.
@@ -749,7 +752,7 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
     from quarq.exceptions import EvalError, RAGError
     from quarq.rag.embedder import Embedder
     from quarq.rag.exact import ExactStore
-    from quarq.rag.retriever import Retriever
+    from quarq.rag.retriever import build_retriever
     from quarq.rag.store import VectorStore
 
     cfg = load_config()
@@ -768,7 +771,9 @@ def _cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> i
             )
             return 1
         embedder = Embedder(model_name=cfg.embedder.model)
-        retriever = Retriever(store=store, embedder=embedder, cfg=cfg)
+        if no_rerank:
+            cfg.rag.rerank = False  # recorded in the report's config snapshot
+        retriever = build_retriever(store, embedder, cfg)
         k_values = parse_k_values(k)
         known_refs = {(c.source, int(c.page)) for c in store.list_chunks()}
         dataset_path = Path(dataset) if dataset else default_dataset_path()
@@ -939,6 +944,11 @@ def main() -> None:
         action="store_true",
         help="Restrict each retrieval to the question's doc_type",
     )
+    eval_parser.add_argument(
+        "--no-rerank",
+        action="store_true",
+        help="Evaluate without the cross-encoder re-ranker, for comparison",
+    )
 
     # quarq eval-gen
     eval_gen_parser = subparsers.add_parser(
@@ -1000,7 +1010,9 @@ def main() -> None:
                 open_browser=args.open_browser,
             )
         elif args.command == "eval":
-            code = _cmd_eval(args.dataset, args.k, args.out, args.doc_type_filter)
+            code = _cmd_eval(
+                args.dataset, args.k, args.out, args.doc_type_filter, args.no_rerank
+            )
             if code:
                 sys.exit(code)
         elif args.command == "eval-gen":

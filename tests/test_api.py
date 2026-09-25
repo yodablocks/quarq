@@ -153,7 +153,7 @@ def test_rag_query_returns_answer_and_sources(client):
 
     with patch("quarq.api.routes.rag.VectorStore") as MockStore, \
          patch("quarq.api.routes.rag.Embedder"), \
-         patch("quarq.api.routes.rag.Retriever") as MockRetriever, \
+         patch("quarq.api.routes.rag.build_retriever") as MockRetriever, \
          patch("quarq.api.routes.rag.answer", return_value=mock_result):
         MockStore.return_value.count.return_value = 100
         MockRetriever.return_value.retrieve.return_value = [mock_chunk, mock_chunk]

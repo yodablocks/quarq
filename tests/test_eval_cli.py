@@ -68,7 +68,7 @@ def patched(monkeypatch: pytest.MonkeyPatch, fake_retriever_cls) -> None:
         ),
     )
     monkeypatch.setattr(
-        "quarq.rag.retriever.Retriever",
+        "quarq.rag.retriever.build_retriever",
         lambda store, embedder, cfg: fake_retriever_cls({"Q one?": [("a.pdf", 1)]}),
     )
 
@@ -117,7 +117,7 @@ def test_cmd_eval_rejects_gold_ref_missing_from_corpus(
     monkeypatch.setattr("quarq.rag.store.VectorStore", _Store)
     monkeypatch.setattr("quarq.rag.embedder.Embedder", _Embedder)
     monkeypatch.setattr(
-        "quarq.rag.retriever.Retriever",
+        "quarq.rag.retriever.build_retriever",
         lambda store, embedder, cfg: fake_retriever_cls({"Q one?": [("a.pdf", 1)]}),
     )
     other_row = {
@@ -140,8 +140,11 @@ def test_cmd_eval_rejects_gold_ref_missing_from_corpus(
 def test_main_dispatches_eval_arguments(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: dict[str, object] = {}
 
-    def fake_cmd_eval(dataset: str | None, k: str, out: str, doc_type_filter: bool) -> int:
-        seen.update(dataset=dataset, k=k, out=out, doc_type_filter=doc_type_filter)
+    def fake_cmd_eval(
+        dataset: str | None, k: str, out: str, doc_type_filter: bool, no_rerank: bool = False
+    ) -> int:
+        seen.update(dataset=dataset, k=k, out=out, doc_type_filter=doc_type_filter,
+                    no_rerank=no_rerank)
         return 0
 
     monkeypatch.setattr(cli, "_cmd_eval", fake_cmd_eval)
@@ -151,4 +154,5 @@ def test_main_dispatches_eval_arguments(monkeypatch: pytest.MonkeyPatch) -> None
 
     cli.main()
 
-    assert seen == {"dataset": "g.jsonl", "k": "1,10", "out": "reports", "doc_type_filter": True}
+    assert seen == {"dataset": "g.jsonl", "k": "1,10", "out": "reports", "doc_type_filter": True,
+                    "no_rerank": False}

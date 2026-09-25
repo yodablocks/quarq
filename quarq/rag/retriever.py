@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Protocol
 
 from quarq.config import QuarqConfig
 from quarq.constants import RETRIEVAL_OVERFETCH_FACTOR
@@ -12,6 +13,12 @@ from quarq.rag.store import RetrievedChunk, VectorStore
 logger = logging.getLogger(__name__)
 
 
+class RerankerLike(Protocol):
+    """The subset of Reranker the retriever uses."""
+
+    def rerank(self, query: str, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]: ...
+
+
 class Retriever:
     """Retrieves relevant document chunks for a query using vector similarity.
 
@@ -19,12 +26,20 @@ class Retriever:
         store: Initialised VectorStore instance.
         embedder: Initialised Embedder instance.
         cfg: Loaded QuarqConfig (provides default k and min_similarity).
+        reranker: Optional re-ranker applied to the top rag.rerank_top_n candidates.
     """
 
-    def __init__(self, store: VectorStore, embedder: Embedder, cfg: QuarqConfig) -> None:
+    def __init__(
+        self,
+        store: VectorStore,
+        embedder: Embedder,
+        cfg: QuarqConfig,
+        reranker: RerankerLike | None = None,
+    ) -> None:
         self._store = store
         self._embedder = embedder
         self._cfg = cfg
+        self._reranker = reranker
         self._corpus_ready: bool | None = None
 
     def retrieve(
@@ -65,6 +80,9 @@ class Retriever:
 
         filtered = [c for c in chunks if c.similarity >= threshold]
         filtered.sort(key=lambda c: c.similarity, reverse=True)
+        if self._reranker is not None and filtered:
+            head = filtered[: self._cfg.rag.rerank_top_n]
+            filtered = self._reranker.rerank(query, head) + filtered[len(head):]
         filtered = _best_chunk_per_page(filtered)[:effective_k]
 
         if not filtered:
@@ -96,3 +114,22 @@ def _best_chunk_per_page(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
             seen.add(key)
             unique.append(chunk)
     return unique
+
+
+def build_retriever(store: VectorStore, embedder: Embedder, cfg: QuarqConfig) -> Retriever:
+    """Build the production retriever, with the re-ranker when config enables it.
+
+    Args:
+        store: Vector store.
+        embedder: Query embedder.
+        cfg: Loaded config (rag.rerank, rag.reranker_model, rag.rerank_max_length).
+
+    Returns:
+        A Retriever. The re-ranker model is only loaded on the first query.
+    """
+    reranker = None
+    if cfg.rag.rerank:
+        from quarq.rag.reranker import Reranker
+
+        reranker = Reranker(cfg.rag.reranker_model, max_length=cfg.rag.rerank_max_length)
+    return Retriever(store, embedder, cfg, reranker=reranker)

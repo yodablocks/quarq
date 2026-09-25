@@ -94,6 +94,9 @@ def config_snapshot(cfg: QuarqConfig) -> dict[str, object]:
         "top_k": cfg.rag.top_k,
         "min_similarity": cfg.rag.min_similarity,
         "embedder_model": cfg.embedder.model,
+        "rerank": cfg.rag.rerank,
+        "reranker_model": cfg.rag.reranker_model if cfg.rag.rerank else None,
+        "rerank_top_n": cfg.rag.rerank_top_n if cfg.rag.rerank else None,
         "collection": RAG_COLLECTION_NAME,
     }
 
