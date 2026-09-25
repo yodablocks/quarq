@@ -171,7 +171,7 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 | One result per page, all documents | 18 / 28 (64%) | 23 / 28 (82%) | 25 / 28 (89%) | 0.75 |
 | One result per page, filtered to `doc_type` | 19 / 28 (68%) | 25 / 28 (89%) | 26 / 28 (93%) | 0.79 |
 
-Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page. "One result per page" is the current behaviour: the baseline often filled the top 5 with several chunks from the same page, so fewer distinct pages were considered.
+Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page. "One result per page" is the current behaviour: the baseline often filled the top 5 with several chunks from the same page, so fewer distinct pages were considered. Retrieval also asks ChromaDB for at least 500 candidates before keeping the best: its approximate search only explores about as many neighbours as results requested, and asking for 20 left true neighbours out for 7 of the 28 questions. With 500, the top 5 pages match an exact search for every question.
 
 What the misses show:
 
