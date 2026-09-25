@@ -153,6 +153,7 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 | `quarq query <question>` | Ask the RAG corpus. `--doc-type`, `--k` |
 | `quarq rag add <path>` | Index a PDF or folder. Re-adding a file replaces its chunks |
 | `quarq rag status` | Corpus statistics |
+| `quarq rag coverage <path>` | Report PDF pages with no text layer (scans, image-only pages), without indexing |
 | `quarq rag dedupe` | Remove chunks that repeat content already in the index. `--dry-run` |
 | `quarq rag migrate` | Copy the previous collection (`quarq_rag_v1`) into the current one, without re-embedding |
 | `quarq rag manifest <folder>` | Apply the corpus manifest to chunks already indexed, without re-embedding |
@@ -211,6 +212,7 @@ quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it h
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
 - **Retrieval misses the right page about a third of the time on the first try.** The answer page ranks first for 18 of 28 questions and is in the top 5 for 25 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
+- **Scanned PDFs aren't searchable.** quarq reads the PDF's text layer and has no OCR, so pages that are only images (scans, full-page photos, infographics) are not indexed. `quarq rag add` warns about them and `quarq rag coverage` lists them; in the current corpus that's 28 of 1,973 pages, and no document is scanned. Numbers inside charts are not searchable either.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
 - **The test suite is fully mocked.** It needs no network, server or LM Studio, which also means it doesn't prove the live APIs still answer the same way. End-to-end checks against a live stack are manual.
 - **yfinance is unofficial.** It scrapes Yahoo Finance and can break or rate-limit without notice.

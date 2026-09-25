@@ -7,9 +7,11 @@ import logging
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import pdfplumber
+
+from quarq.constants import SCANNED_IMAGE_ONLY_SHARE, TEXT_THIN_PAGE_CHARS
 
 if TYPE_CHECKING:
     from quarq.rag.manifest import Manifest
@@ -40,6 +42,90 @@ class Document:
 
     content: str
     metadata: dict[str, str | int] = field(default_factory=dict)
+
+
+@dataclass
+class TextCoverage:
+    """How much of a PDF has a text layer quarq can index.
+
+    Attributes:
+        source: PDF filename.
+        pages: Total pages.
+        blank: Pages with no text and no images (usually intentional blank pages).
+        image_only: Pages with images but no text: scans, full-page photos or
+            infographics. Their content isn't searchable without OCR.
+        thin: Pages with images and very little text, such as a chart with a caption.
+    """
+
+    source: str
+    pages: int = 0
+    blank: list[int] = field(default_factory=list)
+    image_only: list[int] = field(default_factory=list)
+    thin: list[int] = field(default_factory=list)
+
+    @property
+    def likely_scanned(self) -> bool:
+        """True if most pages are image-only, so the document looks scanned."""
+        return self.pages > 0 and len(self.image_only) / self.pages >= SCANNED_IMAGE_ONLY_SHARE
+
+    def record(self, page_number: int, kind: str) -> None:
+        """Record one page's kind (as returned by classify_page).
+
+        Args:
+            page_number: 1-based page number.
+            kind: "text", "blank", "image_only" or "thin".
+        """
+        self.pages += 1
+        if kind == "blank":
+            self.blank.append(page_number)
+        elif kind == "image_only":
+            self.image_only.append(page_number)
+        elif kind == "thin":
+            self.thin.append(page_number)
+
+
+def classify_page(page: Any, text: str | None = None) -> str:
+    """Classify a pdfplumber page by its text layer.
+
+    Args:
+        page: A pdfplumber page.
+        text: The page's extracted text, if already extracted (avoids a second pass).
+
+    Returns:
+        "text", "blank" (no text, no images), "image_only" (images, no text) or
+        "thin" (images and fewer than TEXT_THIN_PAGE_CHARS characters).
+    """
+    content = (page.extract_text() or "" if text is None else text).strip()
+    has_images = bool(getattr(page, "images", None))
+    if not content:
+        return "image_only" if has_images else "blank"
+    if has_images and len(content) < TEXT_THIN_PAGE_CHARS:
+        return "thin"
+    return "text"
+
+
+def text_coverage(path: Path) -> TextCoverage:
+    """Check a PDF's text layer without chunking or indexing it.
+
+    Args:
+        path: PDF file.
+
+    Returns:
+        Its TextCoverage.
+
+    Raises:
+        RAGError: If the PDF can't be opened.
+    """
+    from quarq.exceptions import RAGError
+
+    coverage = TextCoverage(source=path.name)
+    try:
+        with pdfplumber.open(path) as pdf:
+            for page in pdf.pages:
+                coverage.record(page.page_number, classify_page(page))
+    except Exception as exc:
+        raise RAGError(f"Failed to read PDF {path}: {exc}") from exc
+    return coverage
 
 
 def _infer_doc_type(filename: str) -> str:
@@ -121,7 +207,7 @@ def chunk_id(source: str, page: int, text: str) -> str:
     Returns:
         Hex sha256 digest.
     """
-    return hashlib.sha256(f"{source}:{page}:{text}".encode("utf-8")).hexdigest()
+    return hashlib.sha256(f"{source}:{page}:{text}".encode()).hexdigest()
 
 
 def _extract_pdf_date(metadata: dict, filename: str) -> str:
@@ -153,6 +239,7 @@ def load_pdf(
     chunk_size: int = 512,
     chunk_overlap: int = 64,
     manifest: Manifest | None = None,
+    coverage: TextCoverage | None = None,
 ) -> list[Document]:
     """Extract text from a PDF and return it as chunked Documents with metadata.
 
@@ -162,6 +249,8 @@ def load_pdf(
         chunk_overlap: Word overlap between consecutive chunks (defaults to 64).
         manifest: Optional corpus manifest. If it has an entry for this file, its
             period, publication date and doc_type override the inferred values.
+        coverage: Optional TextCoverage to fill in the same pass: which pages are
+            blank, image-only or thin. Pages without text are not chunked.
 
     Returns:
         List of Document instances, each with all five required metadata fields:
@@ -183,9 +272,13 @@ def load_pdf(
             pdf_date = _extract_pdf_date(pdf.metadata or {}, filename)
             all_chunks: list[Document] = []
 
+            if coverage is not None:
+                coverage.source = filename
             for page in pdf.pages:
                 page_num = page.page_number
                 text = page.extract_text() or ""
+                if coverage is not None:
+                    coverage.record(page_num, classify_page(page, text))
                 if not text.strip():
                     logger.debug("Page %d of %s yielded no text, skipping", page_num, filename)
                     continue
@@ -216,6 +309,7 @@ def load_folder(
     chunk_size: int = 512,
     chunk_overlap: int = 64,
     manifest: Manifest | None = None,
+    coverages: list[TextCoverage] | None = None,
 ) -> list[Document]:
     """Load and chunk all PDFs in a folder recursively.
 
@@ -224,6 +318,7 @@ def load_folder(
         chunk_size: Maximum words per chunk.
         chunk_overlap: Word overlap between consecutive chunks.
         manifest: Optional corpus manifest, passed to load_pdf for each file.
+        coverages: Optional list; one TextCoverage per loaded file is appended to it.
 
     Returns:
         Flat list of Document chunks from all found PDFs.
@@ -235,9 +330,13 @@ def load_folder(
                 logger.warning("Skipping non-PDF file: %s", pdf_path)
             continue
         try:
+            coverage = TextCoverage(source=pdf_path.name) if coverages is not None else None
             docs = load_pdf(
-                pdf_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap, manifest=manifest
+                pdf_path, chunk_size=chunk_size, chunk_overlap=chunk_overlap, manifest=manifest,
+                coverage=coverage,
             )
+            if coverages is not None and coverage is not None:
+                coverages.append(coverage)
             documents.extend(docs)
             logger.info("Loaded %d chunks from %s", len(docs), pdf_path.name)
         except Exception as exc:

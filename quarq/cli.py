@@ -289,7 +289,7 @@ def _cmd_rag_add(path_str: str) -> None:
 
     from quarq.exceptions import RAGError
     from quarq.rag.embedder import Embedder
-    from quarq.rag.loader import load_folder, load_pdf
+    from quarq.rag.loader import TextCoverage, load_folder, load_pdf
     from quarq.rag.manifest import find_manifest, load_manifest
     from quarq.rag.store import VectorStore
 
@@ -309,13 +309,19 @@ def _cmd_rag_add(path_str: str) -> None:
     if manifest_path and manifest is not None:
         console.print(f"[dim]Using manifest {manifest_path} ({len(manifest)} documents)[/dim]")
 
+    coverages: list[TextCoverage] = []
     with console.status("[bold cyan]Loading documents...", spinner="dots"):
         if target.is_file():
+            single = TextCoverage(source=target.name)
             documents = load_pdf(target, chunk_size=cfg.rag.chunk_size,
-                                 chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest)
+                                 chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest,
+                                 coverage=single)
+            coverages.append(single)
         else:
             documents = load_folder(target, chunk_size=cfg.rag.chunk_size,
-                                    chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest)
+                                    chunk_overlap=cfg.rag.chunk_overlap, manifest=manifest,
+                                    coverages=coverages)
+    _warn_on_missing_text(coverages)
 
     if not documents:
         console.print("[yellow]No documents found to index.[/yellow]")
@@ -341,6 +347,75 @@ def _cmd_rag_add(path_str: str) -> None:
         + (f", removed [bold]{removed}[/bold] stale chunks of the same files" if removed else "")
         + f". Corpus now has [bold]{store.count()}[/bold] chunks."
     )
+
+
+def _warn_on_missing_text(coverages: list) -> None:
+    """Warn about PDFs whose pages have no text layer, so they aren't searchable.
+
+    Args:
+        coverages: TextCoverage per loaded file.
+    """
+    scanned = [c.source for c in coverages if c.likely_scanned]
+    image_only = sum(len(c.image_only) for c in coverages)
+    if scanned:
+        console.print(
+            f"[bold yellow]Likely scanned (text needs OCR, not searchable now):[/bold yellow] "
+            f"{', '.join(scanned)}"
+        )
+    if image_only:
+        console.print(
+            f"[yellow]{image_only} page(s) have images but no text and were not indexed. "
+            "Run [bold]quarq rag coverage <path>[/bold] for details.[/yellow]"
+        )
+
+
+def _cmd_rag_coverage(path_str: str) -> int:
+    """Report which PDF pages have no text layer, without indexing anything.
+
+    Args:
+        path_str: A PDF file or a folder of PDFs.
+
+    Returns:
+        Process exit code (0 on success).
+    """
+    from quarq.exceptions import RAGError
+    from quarq.rag.loader import text_coverage
+
+    target = Path(path_str).expanduser().resolve()
+    if not target.exists():
+        console.print(f"[red]Path does not exist: {target}[/red]")
+        return 1
+    files = [target] if target.is_file() else sorted(
+        (p for p in target.rglob("*.pdf")), key=lambda p: p.name.lower()
+    )
+    coverages = []
+    with console.status("[bold cyan]Reading PDFs...", spinner="dots"):
+        for pdf in files:
+            try:
+                coverages.append(text_coverage(pdf))
+            except RAGError as exc:
+                console.print(f"[red]{exc}[/red]")
+
+    table = Table(title=f"Text coverage: {len(coverages)} PDF(s)")
+    table.add_column("File")
+    table.add_column("Pages", justify="right")
+    table.add_column("Image-only", justify="right")
+    table.add_column("Thin", justify="right")
+    table.add_column("Blank", justify="right")
+    table.add_column("")
+    for c in sorted(coverages, key=lambda c: (-len(c.image_only), c.source.lower())):
+        table.add_row(
+            c.source, str(c.pages), str(len(c.image_only)), str(len(c.thin)), str(len(c.blank)),
+            "[bold yellow]likely scanned[/bold yellow]" if c.likely_scanned else "",
+        )
+    console.print(table)
+    total = sum(c.pages for c in coverages)
+    console.print(
+        f"{total} pages: {sum(len(c.image_only) for c in coverages)} image-only (not indexed; "
+        f"scans, photos or infographics), {sum(len(c.thin) for c in coverages)} thin (mostly an "
+        f"image, little text), {sum(len(c.blank) for c in coverages)} blank."
+    )
+    return 0
 
 
 def _cmd_rag_dedupe(dry_run: bool) -> int:
@@ -810,6 +885,10 @@ def main() -> None:
     rag_sub.add_parser(
         "migrate", help="Copy the previous collection into the current one (no re-embedding)"
     )
+    rag_coverage_parser = rag_sub.add_parser(
+        "coverage", help="Report PDF pages with no text layer (no indexing)"
+    )
+    rag_coverage_parser.add_argument("path", help="PDF file or folder")
     rag_dedupe_parser = rag_sub.add_parser(
         "dedupe", help="Remove chunks that repeat content already in the index"
     )
@@ -887,6 +966,10 @@ def main() -> None:
                 _cmd_rag_status()
             elif args.rag_command == "add":
                 _cmd_rag_add(args.path)
+            elif args.rag_command == "coverage":
+                code = _cmd_rag_coverage(args.path)
+                if code:
+                    sys.exit(code)
             elif args.rag_command == "dedupe":
                 code = _cmd_rag_dedupe(args.dry_run)
                 if code:
