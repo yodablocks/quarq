@@ -1,7 +1,9 @@
 # rag/ — retrieval-augmented generation layer
 
 Chunk size 512 tokens. Overlap 64 tokens.
-Collection: `quarq_rag_v1`
+Collection: `quarq_rag_v2`, created with `RAG_HNSW_CONFIG` (constants.py). ChromaDB applies HNSW
+settings only at creation; `VectorStore.config_drift` reports a collection that differs.
+`quarq rag migrate` copies `quarq_rag_v1` into v2 without re-embedding.
 
 ## Files
 

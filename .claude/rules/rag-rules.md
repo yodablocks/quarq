@@ -22,7 +22,8 @@ Never embed without all five fields.
 
 ## ChromaDB
 
-Collection name: `quarq_rag_v1`
+Collection name: `quarq_rag_v2` (v1 rebuilt with explicit HNSW settings; `quarq rag migrate` copies v1).
+HNSW settings live in `RAG_HNSW_CONFIG` (constants.py) and apply only when the collection is created.
 Bump suffix if schema changes require full re-index.
 
 ## Embedding Model
