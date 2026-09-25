@@ -10,6 +10,7 @@ import pytest
 
 import quarq.cli as cli
 from quarq.config import QuarqConfig
+from quarq.eval.index_check import IndexCheck
 from quarq.rag.store import RetrievedChunk
 
 ROW = {
@@ -52,6 +53,15 @@ def patched(monkeypatch: pytest.MonkeyPatch, fake_retriever_cls) -> None:
     monkeypatch.setattr(cli, "load_config", lambda: QuarqConfig())
     monkeypatch.setattr("quarq.rag.store.VectorStore", _Store)
     monkeypatch.setattr("quarq.rag.embedder.Embedder", _Embedder)
+    # The fake store can't do exact search; stub the index check with a fixed result.
+    monkeypatch.setattr("quarq.rag.exact.ExactStore", lambda store: store)
+    monkeypatch.setattr(
+        "quarq.eval.index_check.check_index",
+        lambda gold, *args, **kwargs: IndexCheck(
+            n_questions=len(gold), candidates=20, questions_with_gap=0,
+            missed_chunks=0, exact_match_questions=len(gold),
+        ),
+    )
     monkeypatch.setattr(
         "quarq.rag.retriever.Retriever",
         lambda store, embedder, cfg: fake_retriever_cls({"Q one?": [("a.pdf", 1)]}),
@@ -68,6 +78,7 @@ def test_cmd_eval_happy_path_writes_reports(tmp_path: Path, patched) -> None:
     assert code == 0
     assert len(list(out.glob("eval_report_*.json"))) == 1
     assert len(list(out.glob("eval_report_*.md"))) == 1
+    assert "## Index check" in next(out.glob("eval_report_*.md")).read_text()
 
 
 def test_cmd_eval_empty_corpus_returns_1(

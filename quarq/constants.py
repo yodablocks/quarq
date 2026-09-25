@@ -38,3 +38,8 @@ DOC_TYPES: frozenset[str] = frozenset(
 # asking for 500 missed none, at about 4 ms per query on 4,235 chunks. Re-check with the
 # exact-search comparison if the corpus grows by an order of magnitude.
 RETRIEVAL_CANDIDATE_POOL: int = 500
+
+# Eval index check: two similarities closer than this count as a tie, so the HNSW index
+# isn't blamed for returning one near-duplicate chunk instead of its twin. ChromaDB's
+# distance-based scores and an exact cosine differ by about 1e-7 for the same pair.
+SIMILARITY_TIE_TOLERANCE: float = 1e-6

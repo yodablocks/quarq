@@ -10,6 +10,7 @@ from pathlib import Path
 from rich.table import Table
 
 from quarq.constants import EVAL_REPORT_REFS_SHOWN, EVAL_REPORT_WORST_N
+from quarq.eval.index_check import IndexCheck
 from quarq.eval.runner import EvalResult, PerQuestionResult
 from quarq.exceptions import EvalError
 
@@ -33,6 +34,23 @@ def _refs(refs: list[tuple[str, int]]) -> str:
 
 def _provenance_summary(provenance_counts: dict[str, int]) -> str:
     return ", ".join(f"{prov} ({n})" for prov, n in provenance_counts.items())
+
+
+def index_check_line(check: IndexCheck) -> str:
+    """Summarise an IndexCheck in one line for the console.
+
+    Args:
+        check: The index check from an eval run.
+
+    Returns:
+        A one-line summary.
+    """
+    return (
+        f"Index vs exact search: {check.questions_with_gap} / {check.n_questions} questions "
+        f"miss a true neighbour in {check.candidates} candidates "
+        f"({check.missed_chunks} chunks); final pages exact for "
+        f"{check.exact_match_questions} / {check.n_questions}"
+    )
 
 
 def render_table(result: EvalResult) -> Table:
@@ -105,6 +123,24 @@ def to_json(result: EvalResult, path: Path) -> Path:
     return path
 
 
+def _index_check_markdown(result: EvalResult) -> list[str]:
+    check = result.index_check
+    if check is None:
+        return []
+    return [
+        "## Index check",
+        "",
+        "The vector index is approximate. Compared with exact search over the same chunks:",
+        "",
+        f"- Raw index: {check.questions_with_gap} / {check.n_questions} questions miss a true "
+        f"nearest neighbour among {check.candidates} candidates ({check.missed_chunks} "
+        "chunks in total; ties between near-duplicates not counted).",
+        f"- End to end: the retrieved pages match exact search for "
+        f"{check.exact_match_questions} / {check.n_questions} questions.",
+        "",
+    ]
+
+
 def _worst(result: EvalResult, worst_n: int) -> list[PerQuestionResult]:
     max_k = max(result.k_values)
     ranked = sorted(
@@ -161,6 +197,7 @@ def to_markdown(result: EvalResult, path: Path, worst_n: int = EVAL_REPORT_WORST
         "",
         f"MRR: {result.aggregate['mrr']:.3f}",
         "",
+        *_index_check_markdown(result),
         f"## Worst questions (lowest recall@{max_k}, then MRR)",
         "",
         f"| id | question | recall@{max_k} | gold | top retrieved |",

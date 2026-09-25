@@ -10,6 +10,7 @@ from typing import Protocol
 from quarq.config import QuarqConfig
 from quarq.constants import DEFAULT_K_VALUES, RAG_COLLECTION_NAME
 from quarq.eval.dataset import GoldItem, Ref
+from quarq.eval.index_check import IndexCheck
 from quarq.eval.metrics import hit_at_k, mean, precision_at_k, recall_at_k, reciprocal_rank
 from quarq.exceptions import EvalError
 from quarq.rag.store import RetrievedChunk
@@ -54,6 +55,7 @@ class EvalResult:
     per_question: list[PerQuestionResult]
     corpus_chunk_count: int
     generated_at: str
+    index_check: IndexCheck | None = None
 
 
 def parse_k_values(raw: str) -> tuple[int, ...]:
