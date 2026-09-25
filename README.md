@@ -148,24 +148,25 @@ Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`
 
 ## Retrieval quality
 
-`quarq eval` checks, for each question in a human-reviewed gold set, whether retrieval returns the page that answers it. The run is deterministic and makes no LLM calls. Results on 14 questions over a 23-document corpus (default settings: top 5, 0.35 floor), 25 September 2026:
+`quarq eval` checks, for each question in a human-reviewed gold set, whether retrieval returns the page that answers it. The run is deterministic and makes no LLM calls. Results on 28 questions over a 23-document corpus (default settings: top 5, 0.35 floor), 25 September 2026:
 
 | Retrieval | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
-| Baseline, all documents | 7 / 14 (50%) | 10 / 14 (71%) | 10 / 14 (71%) | 0.58 |
-| Baseline, filtered to the question's `doc_type` | 8 / 14 (57%) | 11 / 14 (79%) | 12 / 14 (86%) | 0.67 |
-| One result per page, all documents | 7 / 14 (50%) | 10 / 14 (71%) | 12 / 14 (86%) | 0.64 |
-| One result per page, filtered to `doc_type` | 8 / 14 (57%) | 12 / 14 (86%) | 13 / 14 (93%) | 0.72 |
+| Baseline, all documents | 18 / 28 (64%) | 23 / 28 (82%) | 23 / 28 (82%) | 0.71 |
+| Baseline, filtered to the question's `doc_type` | 19 / 28 (68%) | 24 / 28 (86%) | 25 / 28 (89%) | 0.76 |
+| One result per page, all documents | 18 / 28 (64%) | 23 / 28 (82%) | 25 / 28 (89%) | 0.75 |
+| One result per page, filtered to `doc_type` | 19 / 28 (68%) | 25 / 28 (89%) | 26 / 28 (93%) | 0.79 |
 
 Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page. "One result per page" is the current behaviour: the baseline often filled the top 5 with several chunks from the same page, so fewer distinct pages were considered.
 
 What the misses show:
 
-- **Another edition can outrank the right one.** Asked about household over-indebtedness filings in 2024, retrieval ranked the 2023 annual report (which gives the 2023 figure) above the 2024 one. The embedder doesn't weigh the year in the question, so an answer could cite the wrong year's number.
+- **Another edition can outrank the right one.** Of 6 questions whose answer depends on the year or edition, 2 rank another edition first: the 2023 annual report above the 2024 one for a 2024 figure, and the June 2026 CAC 40 composition above the March 2026 factsheet. The right page is second in both, but the embedder doesn't weigh the year in the question, so an answer could cite the wrong year's number. The document dates stored today come from PDF metadata (file creation, not the period covered), so they can't fix this as they are.
 - **Neighbouring pages win.** In three ECB questions, nearby pages on the same topic (for example p112 for an answer on p113) ranked above the answer page. In one of them, the answer page still isn't in the top 5.
-- **The similarity floor never filters.** Every question had 5 results above 0.35, because retrieved chunks score far above it (about 0.8 to 0.9 in spot checks).
+- **Answers in footnotes lose to the main text.** One ECB answer appears only in a footnote, and retrieval returned the main-text pages about the same April 2025 episode instead.
+- **The similarity floor never filters.** Every question gets as many results as it asks for (only the 4-page factsheet set returns fewer), because retrieved chunks score far above 0.35 (about 0.8 to 0.9 in spot checks).
 
-**Caveat:** 14 questions is small (one question is 7 points), and they were reviewed by a single person. They were also drafted by an LLM from the very chunks being searched, which tends to share wording with the page and flatter retrieval. Treat these numbers as a first baseline to compare changes against, not as expected accuracy. The gold set is in [`quarq/eval/datasets/quarq_gold_v1.jsonl`](quarq/eval/datasets/quarq_gold_v1.jsonl).
+**Caveat:** 28 questions is small (one question is about 3.6 points), and they were reviewed by a single person. They were also drafted by an LLM from the very chunks being searched, which tends to share wording with the page and flatter retrieval. Treat these numbers as a first baseline to compare changes against, not as expected accuracy. The gold set is in [`quarq/eval/datasets/quarq_gold_v1.jsonl`](quarq/eval/datasets/quarq_gold_v1.jsonl).
 
 ## Configuration
 
@@ -193,7 +194,7 @@ The tools call quarq over HTTP and default to `host.docker.internal:8000`, which
 quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it has not been used in production. Known limitations:
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
-- **Retrieval finds the right page about half the time on the first try.** The answer page ranks first for 7 of 14 questions and is in the top 5 for 12 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
+- **Retrieval misses the right page about a third of the time on the first try.** The answer page ranks first for 18 of 28 questions and is in the top 5 for 25 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
 - **The test suite is fully mocked.** It needs no network, server or LM Studio, which also means it doesn't prove the live APIs still answer the same way. End-to-end checks against a live stack are manual.
 - **yfinance is unofficial.** It scrapes Yahoo Finance and can break or rate-limit without notice.
