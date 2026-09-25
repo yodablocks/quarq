@@ -3,7 +3,7 @@
 The embedder scores a question and a passage separately, so it can rank a summary page
 or another edition above the page that holds the answer. A cross-encoder reads the
 question and the passage together and re-orders the top candidates. On the gold set it
-raised the right page at rank 1 from 22 to 32 of 38 questions.
+raised the right page at rank 1 from 22 to 33 of 38 questions.
 
 The model is loaded lazily on first use, so constructing a Reranker is cheap.
 """

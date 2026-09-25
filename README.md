@@ -169,12 +169,12 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 
 | Retrieval | Hit@1 | Hit@3 | Hit@5 | MRR |
 |---|---|---|---|---|
-| **Re-ranked (default)**, all documents | **32 / 38 (84%)** | 34 / 38 (89%) | 35 / 38 (92%) | **0.87** |
-| **Re-ranked (default)**, filtered to the question's `doc_type` | **32 / 38 (84%)** | 35 / 38 (92%) | 36 / 38 (95%) | **0.88** |
+| **Re-ranked (default)**, all documents | **33 / 38 (87%)** | 35 / 38 (92%) | 36 / 38 (95%) | **0.90** |
+| **Re-ranked (default)**, filtered to the question's `doc_type` | **33 / 38 (87%)** | 36 / 38 (95%) | 37 / 38 (97%) | **0.91** |
 | Embedding order only (`rerank = false`), all documents | 22 / 38 (58%) | 32 / 38 (84%) | 35 / 38 (92%) | 0.72 |
 | Embedding order only, filtered to `doc_type` | 23 / 38 (61%) | 34 / 38 (89%) | 36 / 38 (95%) | 0.75 |
 
-The cross-encoder re-ranker moved 11 questions up and 2 down. Up: the answer page went to first place for questions where a summary page, a neighbouring page or another edition used to win, including one it had missed entirely. Down: one edition confusion (a June 2026 index composition above the March 2026 factsheet) and one question where it prefers a 2025 page that also states the 2024 figure but isn't yet in that question's gold list.
+The cross-encoder re-ranker moved 12 questions up and 1 down. Up: the answer page went to first place for questions where a summary page, a neighbouring page or another edition used to win, including one it had missed entirely. Down: one edition confusion (a June 2026 index composition above the March 2026 factsheet).
 
 History on the first 28 questions: returning one result per page (instead of several chunks of the same page) raised Hit@5 from 23 to 25 and MRR from 0.71 to 0.75. The 10 later questions are year-sensitive (the same fact in the 2023, 2024 and 2025 editions) and harder, which is why the overall scores dip.
 
@@ -226,7 +226,7 @@ The tools call quarq over HTTP and default to `host.docker.internal:8000`, which
 quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it has not been used in production. Known limitations:
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
-- **Retrieval misses the right page about one time in six on the first try.** With re-ranking, the answer page ranks first for 32 of 38 questions and is in the top 5 for 35 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
+- **Retrieval misses the right page about one time in six on the first try.** With re-ranking, the answer page ranks first for 33 of 38 questions and is in the top 5 for 36 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
 - **Scanned PDFs aren't searchable.** quarq reads the PDF's text layer and has no OCR, so pages that are only images (scans, full-page photos, infographics) are not indexed. `quarq rag add` warns about them and `quarq rag coverage` lists them; in the current corpus that's 28 of 1,973 pages, and no document is scanned. Numbers inside charts are not searchable either.
 - **Re-ranking costs time and memory.** The cross-encoder adds about 2.5 seconds per query on an Apple GPU and about 400 MB of memory, and its first use downloads about 2.2 GB. Set `rerank = false` for faster, less accurate retrieval.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
