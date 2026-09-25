@@ -143,6 +143,28 @@ Documents get a `doc_type` from their filename: `ecb_fsr`, `bdf_fsr`, `amf_sfdr`
 | `quarq config --set-lmstudio-url <url>` | Point at your LM Studio instance |
 | `quarq serve` | FastAPI server on `127.0.0.1:8000`. `--host`, `--port`, `--reload` |
 | `quarq report --portfolio <toml>` | Generate a report. `--format html\|pdf\|json`, `--output`, `--narrative`, `--open` |
+| `quarq eval` | Score retrieval against the gold set. `--k`, `--doc-type-filter`, `--dataset`, `--out` |
+| `quarq eval-gen` | Draft candidate gold questions with the LLM, for human review. `--per-doc-type`, `--seed`, `--out` |
+
+## Retrieval quality
+
+`quarq eval` checks, for each question in a human-reviewed gold set, whether retrieval returns the page that answers it. The run is deterministic and makes no LLM calls. First baseline, 25 September 2026, on 14 questions over a 23-document corpus (default settings: top 5, 0.35 floor):
+
+| | Hit@1 | Hit@3 | Hit@5 | MRR |
+|---|---|---|---|---|
+| All documents | 7 / 14 (50%) | 10 / 14 (71%) | 10 / 14 (71%) | 0.58 |
+| Filtered to the question's `doc_type` | 8 / 14 (57%) | 11 / 14 (79%) | 12 / 14 (86%) | 0.67 |
+
+Hit@k is the share of questions whose answer page is in the top k. MRR averages 1 / rank of the first correct page.
+
+What the misses show:
+
+- **Another edition can outrank the right one.** Asked about household over-indebtedness filings in 2024, retrieval ranked the 2023 annual report (which gives the 2023 figure) above the 2024 one. The embedder doesn't weigh the year in the question, so an answer could cite the wrong year's number.
+- **Neighbouring pages win.** In three ECB questions, nearby pages on the same topic (for example p112 for an answer on p113) ranked above the answer page. In two of them, the answer page wasn't retrieved at all.
+- **Top-5 slots are wasted on duplicates.** Several chunks from the same page often fill the top 5, so fewer distinct pages are considered.
+- **The similarity floor never filters.** Every question had 5 results above 0.35, because retrieved chunks score far above it (about 0.8 to 0.9 in spot checks).
+
+**Caveat:** 14 questions is small (one question is 7 points), and they were reviewed by a single person. They were also drafted by an LLM from the very chunks being searched, which tends to share wording with the page and flatter retrieval. Treat these numbers as a first baseline to compare changes against, not as expected accuracy. The gold set is in [`quarq/eval/datasets/quarq_gold_v1.jsonl`](quarq/eval/datasets/quarq_gold_v1.jsonl).
 
 ## Configuration
 
@@ -170,7 +192,7 @@ The tools call quarq over HTTP and default to `host.docker.internal:8000`, which
 quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it has not been used in production. Known limitations:
 
 - **"Local" has exceptions.** The narrative model runs on your machine, but tickers and date ranges go to Yahoo Finance and the other data APIs, and if the Claude fallback triggers, the prompt (metrics or retrieved document text) is sent to Anthropic. Leave `ANTHROPIC_API_KEY` unset to keep LLM traffic local.
-- **Retrieval quality is not yet measured.** A retrieval eval harness (precision, recall and hit rate at k over a human-reviewed gold set) is in progress. Until it lands, there are no numbers to back the retrieval defaults.
+- **Retrieval finds the right page about half the time on the first try.** On the first baseline, the answer page ranks first for 7 of 14 questions and is in the top 5 for 10 (see [Retrieval quality](#retrieval-quality)). The test set is still small.
 - **Grounding is prompted, not enforced.** The research agent only sees the top 3 chunks, each cut to 500 characters, and is instructed to answer from them. Nothing checks that the answer actually does.
 - **The test suite is fully mocked.** It needs no network, server or LM Studio, which also means it doesn't prove the live APIs still answer the same way. End-to-end checks against a live stack are manual.
 - **yfinance is unofficial.** It scrapes Yahoo Finance and can break or rate-limit without notice.
@@ -201,6 +223,7 @@ quarq/
   llm/          LM Studio and Claude backends
   report/       Plotly charts, Jinja2 template, renderer
   api/          FastAPI app and routes
+  eval/         retrieval eval: gold set, metrics, runner, reports, draft generation
   portfolio.py  metrics and TOML portfolio loader
   cli.py        the quarq command
 demo/           sample portfolio, Open WebUI tools and setup guide
