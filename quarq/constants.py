@@ -55,3 +55,10 @@ DOC_TYPES: frozenset[str] = frozenset(
 # isn't blamed for returning one near-duplicate chunk instead of its twin. ChromaDB's
 # distance-based scores and an exact cosine differ by about 1e-7 for the same pair.
 SIMILARITY_TIE_TOLERANCE: float = 1e-6
+
+# Text-layer coverage (`quarq rag coverage`, warnings in `quarq rag add`). A page with images
+# and fewer characters than this is "thin": mostly a chart or picture whose content isn't
+# searchable. A document where at least this share of pages are image-only (images, no
+# text) is flagged as likely scanned: its text needs OCR to be searchable.
+TEXT_THIN_PAGE_CHARS: int = 200
+SCANNED_IMAGE_ONLY_SHARE: float = 0.5
