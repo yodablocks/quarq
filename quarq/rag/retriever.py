@@ -7,6 +7,7 @@ from typing import Protocol
 
 from quarq.config import QuarqConfig
 from quarq.constants import RETRIEVAL_OVERFETCH_FACTOR
+from quarq.rag.dates import exact_dates, prefer_covering
 from quarq.rag.embedder import Embedder
 from quarq.rag.store import RetrievedChunk, VectorStore
 
@@ -83,6 +84,8 @@ class Retriever:
         if self._reranker is not None and filtered:
             head = filtered[: self._cfg.rag.rerank_top_n]
             filtered = self._reranker.rerank(query, head) + filtered[len(head):]
+        if self._cfg.rag.date_aware:
+            filtered = prefer_covering(filtered, exact_dates(query))
         filtered = _best_chunk_per_page(filtered)[:effective_k]
 
         if not filtered:
