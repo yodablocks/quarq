@@ -151,8 +151,9 @@ doc_type = "bdf_fsr"        # optional: overrides the filename rule
 | `quarq status` | Provider, LM Studio and corpus health table |
 | `quarq version` | Print version |
 | `quarq query <question>` | Ask the RAG corpus. `--doc-type`, `--k` |
-| `quarq rag add <path>` | Index a PDF or folder |
+| `quarq rag add <path>` | Index a PDF or folder. Re-adding a file replaces its chunks |
 | `quarq rag status` | Corpus statistics |
+| `quarq rag dedupe` | Remove chunks that repeat content already in the index. `--dry-run` |
 | `quarq rag migrate` | Copy the previous collection (`quarq_rag_v1`) into the current one, without re-embedding |
 | `quarq rag manifest <folder>` | Apply the corpus manifest to chunks already indexed, without re-embedding |
 | `quarq config --set-lmstudio-url <url>` | Point at your LM Studio instance |
