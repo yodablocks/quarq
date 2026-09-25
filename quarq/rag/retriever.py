@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from quarq.config import QuarqConfig
+from quarq.constants import RETRIEVAL_OVERFETCH_FACTOR
 from quarq.rag.embedder import Embedder
 from quarq.rag.store import RetrievedChunk, VectorStore
 
@@ -43,8 +44,9 @@ class Retriever:
                             Defaults to config.rag.min_similarity.
 
         Returns:
-            List of RetrievedChunk sorted by similarity descending.
-            Returns [] if no chunks meet the threshold.
+            Up to k chunks sorted by similarity descending, at most one per
+            (source, page): the best-scoring chunk of each page. Returns [] if
+            no chunks meet the threshold.
         """
         effective_k = k if k is not None else self._cfg.rag.top_k
         threshold = min_similarity if min_similarity is not None else self._cfg.rag.min_similarity
@@ -58,10 +60,13 @@ class Retriever:
         query_embedding = self._embedder.embed_query(query)
 
         filters = {"doc_type": doc_type} if doc_type else None
-        chunks = self._store.query(query_embedding, k=effective_k, filters=filters)
+        chunks = self._store.query(
+            query_embedding, k=effective_k * RETRIEVAL_OVERFETCH_FACTOR, filters=filters
+        )
 
         filtered = [c for c in chunks if c.similarity >= threshold]
         filtered.sort(key=lambda c: c.similarity, reverse=True)
+        filtered = _best_chunk_per_page(filtered)[:effective_k]
 
         if not filtered:
             logger.debug(
@@ -73,3 +78,22 @@ class Retriever:
     def invalidate_corpus_cache(self) -> None:
         """Reset the cached corpus-ready flag so the next retrieve() re-checks count."""
         self._corpus_ready = None
+
+
+def _best_chunk_per_page(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    """Keep the first chunk seen for each (source, page), preserving order.
+
+    Args:
+        chunks: Chunks already sorted by similarity, best first.
+
+    Returns:
+        The chunks with later same-page duplicates removed.
+    """
+    seen: set[tuple[str, int]] = set()
+    unique: list[RetrievedChunk] = []
+    for chunk in chunks:
+        key = (chunk.source, chunk.page)
+        if key not in seen:
+            seen.add(key)
+            unique.append(chunk)
+    return unique

@@ -15,3 +15,8 @@ EVAL_REPORT_REFS_SHOWN: int = 3
 
 # quarq eval: how many unknown gold refs to list by name before summarizing the rest.
 EVAL_UNKNOWN_REFS_SHOWN: int = 10
+
+# Retriever: fetch this many times top_k candidate chunks before keeping the best chunk
+# per (source, page), so k distinct pages can still be returned when one page has several
+# matching chunks. The 2026-09-25 baseline saw up to 4 chunks from a single page in a top 5.
+RETRIEVAL_OVERFETCH_FACTOR: int = 4

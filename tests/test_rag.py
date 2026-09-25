@@ -164,6 +164,48 @@ def test_retriever_filters_below_min_similarity() -> None:
     assert results[0].similarity == 0.8
 
 
+def test_retriever_returns_distinct_pages() -> None:
+    """Several chunks from one page collapse to that page's best chunk."""
+    from quarq.rag.retriever import Retriever
+
+    cfg = _make_config()
+    mock_store = MagicMock()
+    mock_embedder = MagicMock()
+    mock_embedder.embed_query.return_value = [0.1, 0.2, 0.3]
+    mock_store.query.return_value = [
+        _make_retrieved_chunk("a1 best", 0.90, source="a.pdf", page=1),
+        _make_retrieved_chunk("a1 second", 0.85, source="a.pdf", page=1),
+        _make_retrieved_chunk("b2", 0.80, source="b.pdf", page=2),
+        _make_retrieved_chunk("a1 third", 0.70, source="a.pdf", page=1),
+        _make_retrieved_chunk("a3", 0.60, source="a.pdf", page=3),
+        _make_retrieved_chunk("c9", 0.50, source="c.pdf", page=9),
+    ]
+
+    retriever = Retriever(store=mock_store, embedder=mock_embedder, cfg=cfg)
+    results = retriever.retrieve("test query", k=3, min_similarity=0.35)
+
+    assert [(c.source, c.page) for c in results] == [("a.pdf", 1), ("b.pdf", 2), ("a.pdf", 3)]
+    assert results[0].content == "a1 best"
+
+
+def test_retriever_overfetches_candidates_for_dedupe() -> None:
+    """The store is asked for more than k chunks, so k distinct pages can still be filled."""
+    from quarq.constants import RETRIEVAL_OVERFETCH_FACTOR
+    from quarq.rag.retriever import Retriever
+
+    cfg = _make_config()
+    mock_store = MagicMock()
+    mock_embedder = MagicMock()
+    mock_embedder.embed_query.return_value = [0.1, 0.2, 0.3]
+    mock_store.query.return_value = []
+
+    retriever = Retriever(store=mock_store, embedder=mock_embedder, cfg=cfg)
+    retriever.retrieve("test query", k=5)
+
+    assert mock_store.query.call_args.kwargs["k"] == 5 * RETRIEVAL_OVERFETCH_FACTOR
+    assert RETRIEVAL_OVERFETCH_FACTOR > 1
+
+
 def test_retriever_returns_empty_when_no_results() -> None:
     """retrieve() returns [] without raising when store returns no chunks."""
     from quarq.rag.retriever import Retriever
