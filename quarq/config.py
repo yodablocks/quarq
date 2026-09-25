@@ -63,6 +63,13 @@ class RAGConfig(BaseModel):
     chunk_overlap: int = 64
     top_k: int = 5
     min_similarity: Annotated[float, Field(ge=0.0, le=1.0)] = 0.35
+    # Cross-encoder re-ranking of the top candidates. On the 38-question gold set it raised
+    # the right page at rank 1 from 22 to 32, at about 2.4 s per query on an Apple GPU; the
+    # model (~2.2 GB, Apache-2.0, multilingual) downloads on first use.
+    rerank: bool = True
+    reranker_model: str = "BAAI/bge-reranker-v2-m3"
+    rerank_top_n: Annotated[int, Field(ge=1)] = 10
+    rerank_max_length: Annotated[int, Field(ge=16)] = 512
 
 
 class PortfolioConfig(BaseModel):

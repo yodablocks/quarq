@@ -32,6 +32,7 @@ class RetrievedChunk:
         similarity: Cosine similarity score in [0, 1].
         source: Shortcut to metadata['source'].
         page: Shortcut to metadata['page'].
+        rerank_score: Cross-encoder relevance score, when the chunk was re-ranked.
     """
 
     content: str
@@ -39,6 +40,7 @@ class RetrievedChunk:
     similarity: float
     source: str
     page: int
+    rerank_score: float | None = None
 
 
 @dataclass

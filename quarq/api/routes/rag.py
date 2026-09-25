@@ -18,7 +18,7 @@ from quarq.exceptions import RAGError
 from quarq.rag.embedder import Embedder
 from quarq.rag.generator import answer
 from quarq.rag.loader import load_folder, load_pdf
-from quarq.rag.retriever import Retriever
+from quarq.rag.retriever import build_retriever
 from quarq.constants import RAG_COLLECTION_NAME
 from quarq.rag.store import VectorStore
 
@@ -49,7 +49,7 @@ def post_query(body: RAGQueryRequest, request: Request) -> RAGQueryResponse:
         )
 
     embedder = Embedder(model_name=cfg.embedder.model)
-    retriever = Retriever(store=store, embedder=embedder, cfg=cfg)
+    retriever = build_retriever(store, embedder, cfg)
     chunks = retriever.retrieve(body.question, k=body.k, doc_type=body.doc_type)
 
     result = answer(body.question, chunks, cfg, portfolio_context=body.portfolio_context)
