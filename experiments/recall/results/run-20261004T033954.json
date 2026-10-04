@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-10-04T03:37:20.617564+00:00",
+  "corpus_chunks": 2571,
+  "pool": {
+    "N=10": {
+      "embedding": 36,
+      "keyword": 36,
+      "hybrid": 35,
+      "hybrid_gained": [],
+      "hybrid_lost": [
+        "b2-013"
+      ]
+    },
+    "N=20": {
+      "embedding": 36,
+      "keyword": 37,
+      "hybrid": 37,
+      "hybrid_gained": [
+        "b1-020"
+      ],
+      "hybrid_lost": []
+    }
+  },
+  "not_in_any_hybrid_pool20": [
+    "b2-011"
+  ],
+  "end_to_end": {
+    "hybrid10+jev": {
+      "hit1": 35,
+      "hit5": 35,
+      "mrr": 0.9211,
+      "misses_hit1": [
+        "b1-020",
+        "b2-011",
+        "b2-013"
+      ]
+    },
+    "hybrid20+jev": {
+      "hit1": 37,
+      "hit5": 37,
+      "mrr": 0.9737,
+      "misses_hit1": [
+        "b2-011"
+      ]
+    },
+    "hybrid10+bge": {
+      "hit1": 32,
+      "hit5": 35,
+      "mrr": 0.8693,
+      "misses_hit1": [
+        "b1-020",
+        "b2-010",
+        "b2-011",
+        "b2-013",
+        "b2-017",
+        "y-09"
+      ]
+    }
+  },
+  "jev_total_cost_usd": 0.0178
+}
