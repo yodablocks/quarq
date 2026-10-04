@@ -50,7 +50,7 @@ End to end:
 Against the bands declared above: at the production pool size (N=10) hybrid is **Nothing** on the pool
 (no gain, one loss) and **a regression** end to end (35 < 36). At N=20 it gains b1-020 and loses none
 (37/38, MRR 0.974), for roughly twice the Jev calls (about $0.03 per run instead of $0.014).
-b2-011 is in no pool, even at 20: neither embeddings nor BM25 find it.
+b2-011 is in no HYBRID pool, even at 20. CORRECTION (same day, found with probe.py): I first wrote that neither embeddings nor BM25 find it. That was wrong for BM25: BM25 alone ranks the gold page first, and my RRF fusion pushed it to 20th because the embedding list does not contain it.
 
 Not a win: the gain is one question (b1-020), found only by widening the pool, on a gold set where one question is 2.6 points
 and where I picked BM25 after looking at the misses. Why RRF pushed b2-013 out of the first 10 was not investigated.
@@ -69,3 +69,9 @@ python3 experiments/recall/probe.py "question" --gold file.pdf:12 --save h-001  
 Saved questions use provenance `hand-written`, so `quarq eval --dataset` accepts the file. Gold pages use the PDF viewer index.
 Checked on b1-020: embedding misses, BM25 ranks the gold page 4th, hybrid 14th, Jev ranks it first with a score of only 0.50
 (the next best is 0.08). The first run took about 14 s wall and 4.7 s of CPU; the corpus is 2,571 chunks.
+
+### Correction and a lead (found with probe.py on b2-011)
+BM25 alone, gold page in the first 10 / 20 chunks: misses b2-013 and b2-017 at 10, only b2-013 at 20 (so 37/38 at 20).
+Hybrid (RRF) at 20: 37/38, missing b2-011. Embedding: 36/38 at both depths. The methods fail on different questions,
+and the fusion step is what loses b2-011. A union (top 10 of each list) or a keyword-first merge might reach 38/38 at a pool of 20.
+NOT tried. It would be tuning the merge on the same 38 questions after seeing which ones fail, so a gain there would not be evidence.
