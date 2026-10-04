@@ -147,3 +147,18 @@ Caveats, in order of weight:
 Prediction written before the run: if the cause is cross-language, at least 3 of the 4 French versions have the gold page in the union pool of 10,
 and h-009 and h-011 move into the pool. If h-013 and h-015 stay out of the pool, the cause is something else (chunking, tables, ranking).
 Confound I cannot remove: a faithful French translation uses the page's own words, so a gain means "French helps", not "language alone".
+
+### Result of step 2 (union merge, pool 10 unless stated)
+| English | French | Embedding rank EN -> FR | BM25 rank EN -> FR | Gold in pool 10 EN -> FR | Jev rank of gold (FR) |
+|---|---|---|---|---|---|
+| h-008 | h-012 | miss -> miss | 6 -> 1 | yes -> yes | 1 (0.97) |
+| h-009 | h-013 | 14 -> 1 | miss -> 1 | no -> yes | 1 (0.96) |
+| h-010 | h-014 | 4 -> 2 | miss -> 2 | yes -> yes | 1 (0.79) |
+| h-011 | h-015 | miss -> 9 | miss -> 8 | no -> no (yes at pool 20) | 1 and 2, both gold pages (0.98 each) at pool 20 |
+
+Against the prediction: 3 of 4 French versions are in the pool at 10 (met), but English was already 2 of 4, so the change is one question (h-009 to h-013).
+h-009 moved in; h-011 did not at pool 10 (the fixed prediction said both would): it is found by both methods at page rank 8 to 9, which the round-robin places beyond chunk 10, and it is caught at pool 20.
+Supported: French wording improves the embedding rank where the page is prose (h-009 14 to 1, h-010 4 to 2, h-011 miss to 9) and BM25 starts matching.
+Not supported: h-012 (the B7 table) is still missed by the embedding in French, so for table rows the embedding itself, not the language, is the problem; BM25 rescues it.
+Confound unchanged: the French wording also shares the page's own vocabulary, so this does not separate "language" from "word overlap".
+Practical reading: a French-speaking analyst asking in French gets better retrieval than the English-question tests suggested; quarq's gold set is entirely English, so it understates French-user quality and overstates English-on-French-page quality.
