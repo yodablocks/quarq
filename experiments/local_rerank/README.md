@@ -62,3 +62,6 @@ The timing test measured 6.4 s per request (max 7.7 s) with the model running co
 `llm_judge.py` therefore takes `--burst N --cool S`: after every N fresh requests it sleeps S seconds. Responses are cached, so any stop resumes cleanly.
 It also reads `pmset -g therm`; if macOS reports a CPU speed limit below 100 it pauses 180 s and stops if still throttled. That is a late tripwire
 (it fires once throttling has begun), not a temperature reading, so the duty cycle is the real protection. Temperature is not measured here.
+`--thermal-log FILE` adds a better guard: run `sudo powermetrics --samplers thermal -i 5000 > FILE` in a second terminal and the judge reads the latest
+"Current pressure level" before every request, waiting 60 s while it is above Nominal (stops after 10 min), and stops if the file is stale or unreadable.
+This is a pressure level (Nominal, Moderate, Heavy, ...), not degrees; how it maps to temperature on this chip is unknown.

@@ -59,9 +59,21 @@ def speed_limit() -> int:
     return int(m.group(1)) if m else 100
 
 
+def pressure_level(path: Path, max_age_s: float = 30.0) -> str:
+    """Latest `Current pressure level:` from a `powermetrics --samplers thermal` log, or 'stale'/'unreadable'."""
+    try:
+        if time.time() - path.stat().st_mtime > max_age_s:
+            return "stale"
+        found = re.findall(r"Current pressure level:\s*(\w+)", path.read_text())
+    except OSError:
+        return "unreadable"
+    return found[-1] if found else "unreadable"
+
+
 class Judge:
-    def __init__(self, url: str, model: str, wording: str, burst: int = 0, cool: float = 0.0) -> None:
-        self.burst, self.cool = burst, cool
+    def __init__(self, url: str, model: str, wording: str, burst: int = 0, cool: float = 0.0,
+                 thermal_log: Path | None = None) -> None:
+        self.burst, self.cool, self.thermal_log = burst, cool, thermal_log
         self.url, self.model, self.wording = url.rstrip("/"), model, wording
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(CACHE)
@@ -78,6 +90,7 @@ class Judge:
             return row[0]
         if self.limit is not None and self.fresh >= self.limit:
             raise SystemExit(f"stopped after {self.fresh} fresh requests (--limit)")
+        self._guard()
         started = time.time()
         resp = requests.post(f"{self.url}/chat/completions", timeout=300, json={
             "model": self.model, "temperature": 0, "max_tokens": 1, "logprobs": True, "top_logprobs": 10,
@@ -98,6 +111,23 @@ class Judge:
         self.ms.append(ms)
         self._rest()
         return p
+
+    def _guard(self) -> None:
+        """Wait while thermal pressure is above Nominal; stop if the log is stale (guard would be blind)."""
+        if self.thermal_log is None:
+            return
+        waited = 0
+        while True:
+            level = pressure_level(self.thermal_log)
+            if level == "Nominal":
+                return
+            if level in ("stale", "unreadable"):
+                raise SystemExit(f"thermal log {level}: stopped rather than run unguarded. Cached requests resume later.")
+            if waited >= 600:
+                raise SystemExit(f"thermal pressure still {level} after 10 min: stopped. Cached requests resume later.")
+            print(f"  thermal pressure {level}: waiting 60 s", flush=True)
+            time.sleep(60)
+            waited += 60
 
     def _rest(self) -> None:
         """Duty cycle: after every `burst` fresh requests, sleep `cool` seconds; stop if the Mac reports throttling."""
@@ -132,12 +162,13 @@ def main() -> None:
     ap.add_argument("--limit", type=int, help="stop after this many fresh requests (timing test)")
     ap.add_argument("--burst", type=int, default=0, help="fresh requests per burst before a cooldown")
     ap.add_argument("--cool", type=float, default=0.0, help="seconds to sleep after each burst")
+    ap.add_argument("--thermal-log", type=Path, help="log from: sudo powermetrics --samplers thermal -i 5000")
     args = ap.parse_args()
 
     cfg = load_config()
     store = VectorStore(cfg)
     cands = Candidates(store, CachedEmbedder(cfg), probe.bm25_index(store))
-    judge = Judge(args.url or cfg.lmstudio.url, args.model, args.wording, args.burst, args.cool)
+    judge = Judge(args.url or cfg.lmstudio.url, args.model, args.wording, args.burst, args.cool, args.thermal_log)
     judge.limit = args.limit
     reranker = JudgeReranker(judge)
     paths = {"gold38": ROOT / "quarq" / "eval" / "datasets" / "quarq_gold_v1.jsonl",
