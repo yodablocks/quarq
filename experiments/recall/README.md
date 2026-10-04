@@ -103,3 +103,11 @@ Not done: union merge, French rewrites, a human check of the questions (rows are
 Prediction written before the run, judged on "gold page in the first 10 chunks": union catches h-001, h-002, h-010 and probably h-008;
 it does not catch h-009 or h-011. Anything else means the prediction was wrong.
 Run: `python3 experiments/recall/probe.py --id h-001 --pool 10 --merge union --no-jev`
+
+### Result of step 1 (union merge, hard set v1, 11 questions, no Jev calls)
+Gold page in the first 10 chunks: **union 9/11** (misses h-009, h-011), versus RRF 5/11 and the best single method alone varying by question.
+Same at pool 20 (9/11). The prediction held exactly: caught h-001, h-002, h-008, h-010; missed h-009, h-011.
+Weak evidence, three reasons: I made the prediction after seeing the per-method ranks in the table above, so it is a consistency check, not a blind test;
+h-001 and h-002 were the very questions that motivated the idea; the set is 11 questions I drafted.
+NOT yet checked: regression over the original 38 questions (the earlier band said a merge must not lose pages the embeddings already found).
+Until that is run, nothing here says union is better than the embedding pool in general.
