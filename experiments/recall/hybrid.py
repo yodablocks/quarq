@@ -64,6 +64,18 @@ def fuse(lists: list[list[RetrievedChunk]], rrf_k: int = 60) -> list[RetrievedCh
     return [keep[k] for k in sorted(score, key=lambda k: score[k], reverse=True)]
 
 
+def interleave(lists: list[list[RetrievedChunk]]) -> list[RetrievedChunk]:
+    """Round-robin union: first of each list, then second of each, skipping repeats."""
+    seen: set[str] = set()
+    out: list[RetrievedChunk] = []
+    for rank in range(max((len(lst) for lst in lists), default=0)):
+        for lst in lists:
+            if rank < len(lst) and _key(lst[rank]) not in seen:
+                seen.add(_key(lst[rank]))
+                out.append(lst[rank])
+    return out
+
+
 class Candidates:
     """Pool generators, so recall can be measured without any re-ranker."""
 

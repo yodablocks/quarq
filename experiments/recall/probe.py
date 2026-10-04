@@ -29,7 +29,7 @@ sys.path.insert(0, str(ROOT))
 
 from experiments.jev_rerank.client import JevClient  # noqa: E402
 from experiments.jev_rerank.jev_reranker import JevReranker  # noqa: E402
-from experiments.recall.hybrid import BM25, fuse  # noqa: E402
+from experiments.recall.hybrid import BM25, fuse, interleave  # noqa: E402
 from quarq.config import load_config  # noqa: E402
 from quarq.rag.store import VectorStore  # noqa: E402
 
@@ -106,6 +106,8 @@ def main() -> None:
     ap.add_argument("--gold", action="append", default=[], help="source.pdf:page (repeatable)")
     ap.add_argument("--id", help="re-run a question saved in hard_v1.jsonl")
     ap.add_argument("--pool", type=int, default=10, help="chunks handed to Jev (default 10, max 20)")
+    ap.add_argument("--merge", choices=("rrf", "union"), default="rrf",
+                    help="how embedding and BM25 candidates are merged (default rrf)")
     ap.add_argument("--no-jev", action="store_true", help="skip the cloud call (free)")
     ap.add_argument("--save", metavar="ID", help="append this question to hard_v1.jsonl")
     ap.add_argument("--provenance", default="hand-written",
@@ -132,10 +134,10 @@ def main() -> None:
     emb = sorted(store.query(query_embedding(cfg, question), k=DEPTH, filters=None),
                  key=lambda c: c.similarity, reverse=True)
     kw = index.top(question, DEPTH)
-    hybrid = fuse([emb, kw])
+    hybrid = fuse([emb, kw]) if args.merge == "rrf" else interleave([emb, kw])
     print(f"\nQ: {question}\ngold: {sorted(gold)}\n")
     print("gold page rank (distinct pages, best first):")
-    for name, pool in (("embedding", emb), ("BM25", kw), ("hybrid", hybrid)):
+    for name, pool in (("embedding", emb), ("BM25", kw), (f"hybrid/{args.merge}", hybrid)):
         print(f"  {name:<10} {page_ranks(pool, gold)}")
     in_pool = any((c.source, int(c.page)) in gold for c in hybrid[:pool_n])
     print(f"  hybrid pool of {pool_n} chunks contains the gold page: {'yes' if in_pool else 'NO'}")

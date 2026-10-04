@@ -98,3 +98,8 @@ Observations (n is small, questions drafted by me, nothing tuned):
 - RRF buried a page that a single method had in its top 6 in 4 of 11 questions (h-001, h-002, h-008, h-010). Fusion looks like the weak link again, on questions I had not seen before for h-008 and h-010.
 - h-009 and h-011 are in no pool at all.
 Not done: union merge, French rewrites, a human check of the questions (rows are still `synthetic-draft`).
+
+## Step 1 after the hard set: union merge (round-robin of embedding and BM25 chunks)
+Prediction written before the run, judged on "gold page in the first 10 chunks": union catches h-001, h-002, h-010 and probably h-008;
+it does not catch h-009 or h-011. Anything else means the prediction was wrong.
+Run: `python3 experiments/recall/probe.py --id h-001 --pool 10 --merge union --no-jev`
