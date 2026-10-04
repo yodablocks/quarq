@@ -131,3 +131,14 @@ Pool membership is not Hit@1. At N=10 the union gives the re-ranker about 5 embe
 Baseline: Jev v1 over the embedding pool of 10 = 36/38 Hit@1 (misses b1-020, b2-011).
 Pass: union pool 10 + Jev v1 scores at least 36. Improvement: 37 or more. Below 36: regression, questions named.
 Run: `python3 experiments/recall/e2e_union.py 10` (embeddings come from the cache, Jev is a cloud call).
+
+### Result of step 1c (results/e2e-union-10.json)
+Union pool 10 + Jev v1, 38 original questions: **Hit@1 38/38, Hit@5 38/38, MRR 1.000** (baseline 36/38, 0.947). Band: improvement.
+Gains: b1-020 and b2-011, the two questions that were not in the embedding pool. Nothing lost.
+Hard set v1 with the same setup (11 questions): Jev ranks the gold page first for 9 of 11; h-009 and h-011 are in no pool.
+Cost: 8 fresh Jev calls, 372 served from the response cache (most union pools overlap pools already scored), $0.0003.
+Caveats, in order of weight:
+- A perfect score on a set I have iterated on is as much a sign of set saturation as of quality: 28 of the 38 were drafted from the chunks searched, and the two gains are the questions that motivated the merge.
+- The hard-set questions that were not used to design the merge (h-008, h-010) both succeed, which is the better evidence, but n is 2.
+- The cache holds one Jev answer per (question, passage) pair: run-to-run variation of Jev is not measured.
+- The two hard questions that remain (h-009, h-011) are in no pool: the union does not fix cross-language misses.

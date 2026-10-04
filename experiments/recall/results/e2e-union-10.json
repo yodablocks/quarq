@@ -1,0 +1,10 @@
+{
+  "pool": 10,
+  "hit1": 38,
+  "hit5": 38,
+  "mrr": 1.0,
+  "misses_hit1": [],
+  "fresh_calls": 8,
+  "cache_hits": 372,
+  "cost_usd": 0.00034
+}
