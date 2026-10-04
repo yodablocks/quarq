@@ -31,3 +31,29 @@ both are reported.
 
 ## Run
 `python3 experiments/recall/run.py`
+
+## Result (run 2026-10-04, results/run-20261004T033954.json)
+Gold page inside the pool, out of 38 questions:
+| Pool | Embedding | BM25 | Hybrid (RRF) | Hybrid gained | Hybrid lost |
+|---|---|---|---|---|---|
+| first 10 chunks | 36 | 36 | 35 | none | b2-013 |
+| first 20 chunks | 36 | 37 | 37 | b1-020 | none |
+
+End to end:
+| Arm | Hit@1 | Hit@5 | MRR | Misses |
+|---|---|---|---|---|
+| embedding pool 10 + Jev (earlier run, baseline) | 36 | 36 | 0.947 | b1-020, b2-011 |
+| hybrid pool 10 + Jev | 35 | 35 | 0.921 | b1-020, b2-011, b2-013 |
+| hybrid pool 20 + Jev | 37 | 37 | 0.974 | b2-011 |
+| hybrid pool 10 + bge (baseline bge: 33) | 32 | 35 | 0.869 | 6 |
+
+Against the bands declared above: at the production pool size (N=10) hybrid is **Nothing** on the pool
+(no gain, one loss) and **a regression** end to end (35 < 36). At N=20 it gains b1-020 and loses none
+(37/38, MRR 0.974), for roughly twice the Jev calls (about $0.03 per run instead of $0.014).
+b2-011 is in no pool, even at 20: neither embeddings nor BM25 find it.
+
+Not a win: the gain is one question (b1-020), found only by widening the pool, on a gold set where one question is 2.6 points
+and where I picked BM25 after looking at the misses. Why RRF pushed b2-013 out of the first 10 was not investigated.
+Not run: embedding pool 20 + Jev (the pool numbers show it cannot beat 36, since the embedding pool holds the same 36 pages at N=10 and N=20),
+BM25 or fusion tuning, any depth other than 40.
+What this set cannot do: show a recall improvement. It has 2 failing questions, so there is almost nothing to fix and a lot of room to lose.
