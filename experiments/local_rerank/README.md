@@ -24,3 +24,19 @@ Latency is reported per query (p50), not gated.
 
 ## Run
 `python3 experiments/local_rerank/run.py` (loads bge once; ctrl-C stops it)
+
+## Result of step 3a (results/bge-union.json, one run)
+| Set | Reranker + pool | Hit@1 | Hit@5 | MRR | Query p50 |
+|---|---|---|---|---|---|
+| gold38 | bge, embedding pool (earlier run) | 33 | 36 | 0.901 | 2,079 ms |
+| gold38 | bge, union pool | 33 | 38 | 0.926 | 2,099 ms |
+| gold38 | Jev, union pool (experiments/recall) | 38 | 38 | 1.000 | 862 ms |
+| hard15 | bge, union pool | 10 | 12 | 0.733 | 2,049 ms |
+| hard15 | Jev, union pool 10 (from experiments/recall step 1c and step 2; Jev on h-015 not run at pool 10 because the gold page is not in the pool) | 12 | n/a | n/a | about 850 ms |
+
+Band: **no lift** at Hit@1 (33, not 35). The union gets the gold page into bge's pool (Hit@5 36 to 38, MRR 0.901 to 0.926), but bge does not rank it first:
+its Hit@1 misses on the 38 are the same five as before (b1-020, b2-010, b2-011, b2-017, y-09), including the two the union added to the pool.
+On the hard set bge misses h-001, h-002, h-009, h-011 and h-015 at rank 1; h-009, h-011 and h-015 are not in the pool at 10 for any re-ranker, so the real difference with Jev is h-001 and h-002 (Jev first, bge not).
+Gap to Jev at Hit@1: 5 questions on the 38, 2 on the hard set. bge was about 2.4 times slower per query on this machine (local GPU against a network call).
+Reading, not tested: the Jev question asks whether the passage states the answer; bge scores topical relevance. The prompt wording, not only the model, may carry the difference.
+Caveats: one run, same small sets, 3 s pauses between questions (latency excludes them).
