@@ -1,0 +1,32 @@
+{
+  "N=10": {
+    "embedding": 36,
+    "bm25": 36,
+    "rrf": 35,
+    "union": 38,
+    "rrf_lost": [
+      "b2-013"
+    ],
+    "rrf_gained": [],
+    "union_lost": [],
+    "union_gained": [
+      "b1-020",
+      "b2-011"
+    ]
+  },
+  "N=20": {
+    "embedding": 36,
+    "bm25": 37,
+    "rrf": 37,
+    "union": 38,
+    "rrf_lost": [],
+    "rrf_gained": [
+      "b1-020"
+    ],
+    "union_lost": [],
+    "union_gained": [
+      "b1-020",
+      "b2-011"
+    ]
+  }
+}

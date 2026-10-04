@@ -116,3 +116,13 @@ Until that is run, nothing here says union is better than the embedding pool in 
 Pass = union loses no gold page that the embedding pool already had in the first 10 chunks (N=10; N=20 reported too).
 Any loss is named by id and counts as a regression. Passing means "did not break anything", not "is better".
 Run: `python3 experiments/recall/regress.py` (no Jev calls, no bge, one embedder load).
+
+### Result of step 1b (results/regress-38.json)
+Gold page in the first N chunks, over the 38 original questions:
+| Pool | Embedding | BM25 | RRF | Union | Union lost | Union gained |
+|---|---|---|---|---|---|---|
+| N=10 | 36 | 36 | 35 | **38** | none | b1-020, b2-011 |
+| N=20 | 36 | 37 | 37 | **38** | none | b1-020, b2-011 |
+Condition met: the union loses nothing the embedding pool had. The RRF rows reproduce the earlier run (35 at N=10 losing b2-013, 37 at N=20), a sanity check on the harness.
+Caveats: the two gains are the very questions that motivated the merge, so they are in-sample; the out-of-sample evidence is h-008 and h-010 on the hard set.
+Pool membership is not Hit@1. At N=10 the union gives the re-ranker about 5 embedding chunks plus 5 BM25 chunks instead of 10 embedding chunks, which could change the final order. Not measured yet.
