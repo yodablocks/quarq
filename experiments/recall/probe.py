@@ -57,7 +57,11 @@ def load_saved(qid: str) -> tuple[str, set[tuple[str, int]]]:
     sys.exit(f"no saved question {qid!r} in {HARD.name}")
 
 
+_EMBEDDER = None
+
+
 def query_embedding(cfg, question: str) -> list[float]:
+    global _EMBEDDER
     CACHE.mkdir(exist_ok=True)
     path = CACHE / "query_emb.json"
     cache = json.loads(path.read_text()) if path.exists() else {}
@@ -65,8 +69,10 @@ def query_embedding(cfg, question: str) -> list[float]:
     if key not in cache:
         from quarq.rag.embedder import Embedder
 
-        print("(loading the embedding model once for this new question)")
-        cache[key] = Embedder(model_name=cfg.embedder.model).embed_query(question)
+        if _EMBEDDER is None:
+            print("(loading the embedding model, once per process)")
+            _EMBEDDER = Embedder(model_name=cfg.embedder.model)
+        cache[key] = _EMBEDDER.embed_query(question)
         path.write_text(json.dumps(cache))
     return cache[key]
 
