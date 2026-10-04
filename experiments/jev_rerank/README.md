@@ -66,3 +66,14 @@ The two misses are first-stage failures: for both, the gold page is not in the e
 Latency again: call p50 about 520 ms, p95 about 820 ms; each wording about $0.014.
 Still not tested: rerunning one fixed wording (cache returns the same answers), French-only questions, harder or larger gold sets, local alternatives.
 Identical results across three wordings is itself a mild warning: this gold set may be too easy to separate them (28 of 38 questions were drafted from the chunks themselves).
+
+## Experiment (a): repeat-run variation of Jev, bands written before the run
+Every earlier Jev result came from a cache that returns one answer per (question, passage) pair, so run-to-run variation was never measured.
+`repeat.py` scores the same pairs three times: pass 0 from the cache (the earlier answers), passes 1 and 2 with the cache bypassed (`fresh=True`, nothing written).
+Same union pool of 10, wording v1, 38 gold + 15 hard questions (about 530 pairs per pass). Cloud calls only, about $0.03, no local model.
+Bands (on the questions' Hit@1 and top-1 page across the three passes):
+- **Stable**: every pass gives the same Hit@1 on both sets and no question's top-1 page changes.
+- **Some variation**: scores differ (spread over 0.05 on any pair) but Hit@1 is the same in every pass and at most 2 questions change top-1.
+- **Unstable**: Hit@1 differs by 2 or more questions between passes on either set, or more than 2 questions change top-1.
+Also reported: pairs with identical scores, max and mean score spread. If Jev is deterministic at the API level the result is "stable, identical": that is a legitimate outcome.
+Run: `python3 experiments/jev_rerank/repeat.py`
