@@ -53,3 +53,16 @@ The `bge` baseline is 33/38 from the first run. Per-wording Hit@1, then:
 Wordings were written once, before running, and are not tuned afterwards.
 Repeat-run noise of one fixed wording is NOT tested: responses are cached, so a rerun returns the same answers.
 Run: `python3 experiments/jev_rerank/run.py --arms jev:v2,jev:v3`
+
+### Result of follow-up (a) (results/run-20261004T033321.json)
+| Wording | Hit@1 | Hit@5 | MRR | Misses |
+|---|---|---|---|---|
+| v1 (original) | 36/38 | 36/38 | 0.947 | b1-020, b2-011 |
+| v2 (shorter) | 36/38 | 36/38 | 0.947 | b1-020, b2-011 |
+| v3 (reader with only this passage) | 36/38 | 36/38 | 0.947 | b1-020, b2-011 |
+
+Band: **robust win** (all three at least 35/38, spread 0). Per-question outcomes were identical across wordings.
+The two misses are first-stage failures: for both, the gold page is not in the embedding top 40 (checked directly), so no re-ranker could reach it. b1-020 is an exact-date factsheet question about BNP's index weight; b2-011 is an ECB FSR page.
+Latency again: call p50 about 520 ms, p95 about 820 ms; each wording about $0.014.
+Still not tested: rerunning one fixed wording (cache returns the same answers), French-only questions, harder or larger gold sets, local alternatives.
+Identical results across three wordings is itself a mild warning: this gold set may be too easy to separate them (28 of 38 questions were drafted from the chunks themselves).
