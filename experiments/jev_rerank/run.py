@@ -59,15 +59,18 @@ def main() -> None:
                  "corpus_chunks": n_chunks, "rerank_top_n": cfg.rag.rerank_top_n, "arms": {}}
 
     for arm in args.arms.split(","):
-        reranker = {"embedding": None,
-                    "bge": Reranker(cfg.rag.reranker_model, max_length=cfg.rag.rerank_max_length),
-                    "jev": JevReranker(client)}[arm]
+        if arm == "embedding":
+            reranker = None
+        elif arm == "bge":
+            reranker = Reranker(cfg.rag.reranker_model, max_length=cfg.rag.rerank_max_length)
+        else:  # "jev" or "jev:v2"
+            reranker = JevReranker(client, variant=arm.partition(":")[2] or "v1")
         timed = Timed(Retriever(store, embedder, cfg, reranker=reranker))
         res = run_eval(timed, gold, cfg, dataset_name="quarq_gold_v1", corpus_chunk_count=n_chunks)
         entry = {"aggregate": res.aggregate,
                  "per_question_hit1": {q.id: q.metrics["hit@1"] for q in res.per_question},
                  "query_ms_p50": statistics.median(timed.ms), "query_ms_p95": pct(timed.ms, 0.95)}
-        if arm == "jev":
+        if arm.startswith("jev"):
             entry.update(ties_at_top=reranker.ties_at_top, fresh_calls=client.fresh_calls,
                          cache_hits=client.cache_hits, input_tokens=client.input_tokens,
                          cost_usd=round(client.cost_usd, 5),

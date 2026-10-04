@@ -43,3 +43,13 @@ Band: **beats**, but by exactly 3 questions, the threshold. Jev fixed b2-010, b2
 Both arms miss b1-020 and b2-011: Hit@5 is identical (36/38), so the shortlist, not the re-ranker, is the ceiling.
 Jev: 380 calls, 338,274 input tokens, $0.014, call latency p50 524 ms and p95 805 ms, 2 queries with a tie at the top.
 Not measured: repeat-run stability, wording sensitivity, French-only questions separately, any prompt variant (one wording, not tuned).
+
+## Follow-up (a): wording sensitivity, bands written before the run
+Same arm, same 38 questions, three wordings of the Noul question (v1 original, v2 shorter, v3 "reader with only this passage").
+The `bge` baseline is 33/38 from the first run. Per-wording Hit@1, then:
+- **Robust win**: all three wordings at least 35/38.
+- **Holds**: all three at least 33/38.
+- **Unstable**: any two wordings differ by 3 or more questions, or any wording below 33/38. Then the first result was a wording effect.
+Wordings were written once, before running, and are not tuned afterwards.
+Repeat-run noise of one fixed wording is NOT tested: responses are cached, so a rerun returns the same answers.
+Run: `python3 experiments/jev_rerank/run.py --arms jev:v2,jev:v3`
