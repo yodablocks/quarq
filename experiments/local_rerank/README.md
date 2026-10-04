@@ -65,3 +65,11 @@ It also reads `pmset -g therm`; if macOS reports a CPU speed limit below 100 it 
 `--thermal-log FILE` adds a better guard: run `sudo powermetrics --samplers thermal -i 5000 > FILE` in a second terminal and the judge reads the latest
 "Current pressure level" before every request, waiting 60 s while it is above Nominal (stops after 10 min), and stops if the file is stale or unreadable.
 This is a pressure level (Nominal, Moderate, Heavy, ...), not degrees; how it maps to temperature on this chip is unknown.
+
+## Outcome of step 3b: not completed, no result
+The judge run was stopped by hand after 26 of the 150 requests the hard set needs (10 of them for the first gold question), because the Mac overheated:
+a continuous run reached the temperature the user reported (about 110 C within a minute), and even a 4-request burst raised macOS thermal pressure to Moderate.
+No Hit@1 was produced, so **the wording hypothesis (does "states the answer" beat "is relevant") is untested** and nothing here says a local LLM judge works or fails.
+What is recorded: a 12B model on this machine took 6.4 s per request (max 7.7 s) on the 10-request timing test, and the host at 192.168.1.107 is the same Mac.
+The code stays so the run can be repeated on a machine that can take it, or with a smaller model after committing new bands. Cached scores are in `.cache/` (gitignored).
+The conclusion from step 3a stands: bge on the union pool is about 5 questions behind Jev on the 38.
