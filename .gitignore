@@ -83,3 +83,6 @@ chroma/
 # Distribution
 *.tar.gz
 *.whl
+
+# experiments: Jev response cache
+experiments/jev_rerank/.cache/
