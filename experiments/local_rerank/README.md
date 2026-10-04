@@ -40,3 +40,36 @@ On the hard set bge misses h-001, h-002, h-009, h-011 and h-015 at rank 1; h-009
 Gap to Jev at Hit@1: 5 questions on the 38, 2 on the hard set. bge was about 2.4 times slower per query on this machine (local GPU against a network call).
 Reading, not tested: the Jev question asks whether the passage states the answer; bge scores topical relevance. The prompt wording, not only the model, may carry the difference.
 Caveats: one run, same small sets, 3 s pauses between questions (latency excludes them).
+
+## Step 3b: a local LLM as a pointwise judge (gemma-4-12b-qat on the LAN LM Studio host)
+Question: can a local model, asked whether the passage states the answer, re-rank as well as Jev, and does the wording matter as much as the model?
+Score: P(yes) from the first token's log-probabilities (yes/no variants, normalized). Same union pool of 10, same two sets (38 gold, 15 hard).
+Two wordings, same model, committed in `llm_judge.py`:
+- **A** "does the passage state the answer" (the Jev wording).
+- **B** "is the passage relevant to the question" (topical, what bge is trained for).
+Requests are sequential, responses cached on disk. The question and passage go to the LM Studio host on the LAN only.
+
+Bands, written before the run. References on the 38: bge 33, Jev 38.
+- **Matches bge**: wording A scores 31 to 35. **Closes the gap**: 36 or more. **Worse than bge**: 30 or fewer.
+- **Wording matters**: A and B differ by 3 or more questions on the 38. Otherwise the wording is not carrying the result at this sample size.
+- A run with more than 5% of requests returning no yes/no signal is void (reported as such).
+Timing first: the first 10 requests are timed alone; if a request takes over 3 s on average the full run (about 530 per wording) is not started without asking.
+Run: `python3 experiments/local_rerank/llm_judge.py --wording A --limit 10` (timing), then without `--limit`.
+
+### Heat (found after the timing test)
+The LM Studio host (192.168.1.107) is the same Mac that runs everything else, so the 12B model's inference heats this machine.
+The timing test measured 6.4 s per request (max 7.7 s) with the model running continuously.
+`llm_judge.py` therefore takes `--burst N --cool S`: after every N fresh requests it sleeps S seconds. Responses are cached, so any stop resumes cleanly.
+It also reads `pmset -g therm`; if macOS reports a CPU speed limit below 100 it pauses 180 s and stops if still throttled. That is a late tripwire
+(it fires once throttling has begun), not a temperature reading, so the duty cycle is the real protection. Temperature is not measured here.
+`--thermal-log FILE` adds a better guard: run `sudo powermetrics --samplers thermal -i 5000 > FILE` in a second terminal and the judge reads the latest
+"Current pressure level" before every request, waiting 60 s while it is above Nominal (stops after 10 min), and stops if the file is stale or unreadable.
+This is a pressure level (Nominal, Moderate, Heavy, ...), not degrees; how it maps to temperature on this chip is unknown.
+
+## Outcome of step 3b: not completed, no result
+The judge run was stopped by hand after 26 of the 150 requests the hard set needs (10 of them for the first gold question), because the Mac overheated:
+a continuous run reached the temperature the user reported (about 110 C within a minute), and even a 4-request burst raised macOS thermal pressure to Moderate.
+No Hit@1 was produced, so **the wording hypothesis (does "states the answer" beat "is relevant") is untested** and nothing here says a local LLM judge works or fails.
+What is recorded: a 12B model on this machine took 6.4 s per request (max 7.7 s) on the 10-request timing test, and the host at 192.168.1.107 is the same Mac.
+The code stays so the run can be repeated on a machine that can take it, or with a smaller model after committing new bands. Cached scores are in `.cache/` (gitignored).
+The conclusion from step 3a stands: bge on the union pool is about 5 questions behind Jev on the 38.

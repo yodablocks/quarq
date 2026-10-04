@@ -87,3 +87,4 @@ chroma/
 # experiments: Jev response cache
 experiments/jev_rerank/.cache/
 experiments/recall/.cache/
+experiments/local_rerank/.cache/
