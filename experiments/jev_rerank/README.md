@@ -31,3 +31,15 @@ export TYPESAFE_API_KEY=...        # already set in Marc's shell
 python3 experiments/jev_rerank/run.py --arms embedding,bge,jev
 ```
 Responses are cached in `.cache/`, so a re-run costs nothing. Results go to `results/`.
+
+## Result (run 2026-10-04, one run, results/run-20261004T032932.json)
+| Arm | Hit@1 | Hit@3 | Hit@5 | MRR | Query latency p50 |
+|---|---|---|---|---|---|
+| embedding | 23/38 | 32/38 | 35/38 | 0.74 | 50 ms |
+| bge (production) | 33/38 | 35/38 | 36/38 | 0.90 | 2,079 ms (Apple GPU) |
+| jev | 36/38 | 36/38 | 36/38 | 0.95 | 862 ms (12 parallel calls) |
+
+Band: **beats**, but by exactly 3 questions, the threshold. Jev fixed b2-010, b2-017 and y-09 and broke none.
+Both arms miss b1-020 and b2-011: Hit@5 is identical (36/38), so the shortlist, not the re-ranker, is the ceiling.
+Jev: 380 calls, 338,274 input tokens, $0.014, call latency p50 524 ms and p95 805 ms, 2 queries with a tie at the top.
+Not measured: repeat-run stability, wording sensitivity, French-only questions separately, any prompt variant (one wording, not tuned).
