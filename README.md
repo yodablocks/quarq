@@ -246,7 +246,7 @@ quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it h
 | [`recall`](experiments/recall/README.md) | Do BM25 candidates next to the embedding candidates put more answer pages in front of the re-ranker? | A round-robin union has the answer page in the first 10 chunks for 38/38 (embedding alone 36, reciprocal rank fusion 35). With Jev, Hit@1 is 38/38 in two of three passes and 37/38 in the third. Includes a one-question probe and a 15-question hard set. |
 | [`local_rerank`](experiments/local_rerank/README.md) | Does that better candidate pool also help the local cross-encoder? | No lift at Hit@1 (33/38), though Hit@5 rises from 36 to 38. The local path is about 5 questions behind Jev. |
 
-Treat these as leads, not measurements. The gold set is small (one question is 2.6 points), 28 of its 38 questions were drafted from the chunks being searched, the 15 hard questions were drafted by an LLM and have not been reviewed by a person, and a perfect score on a set that has been iterated on partly reflects saturation. The Retrieval quality numbers above describe the shipped defaults and are unchanged.
+Treat these as leads, not measurements. The gold set is small (one question is 2.6 points), 28 of its 38 questions were drafted from the chunks being searched, the 15 hard questions were drafted by an LLM (a person checked every answer and page against the PDFs, but the LLM chose the questions), and a perfect score on a set that has been iterated on partly reflects saturation. The Retrieval quality numbers above describe the shipped defaults and are unchanged.
 
 ## Development
 
