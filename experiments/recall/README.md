@@ -75,3 +75,26 @@ BM25 alone, gold page in the first 10 / 20 chunks: misses b2-013 and b2-017 at 1
 Hybrid (RRF) at 20: 37/38, missing b2-011. Embedding: 36/38 at both depths. The methods fail on different questions,
 and the fusion step is what loses b2-011. A union (top 10 of each list) or a keyword-first merge might reach 38/38 at a pool of 20.
 NOT tried. It would be tuning the merge on the same 38 questions after seeing which ones fail, so a gain there would not be evidence.
+
+## Hard set v1 probe results (11 questions: h-001, h-002 known misses; h-003..h-011 drafted 2026-10-04)
+Gold page rank = rank among distinct pages in each candidate list (depth 40). Pool = first N chunks of the RRF hybrid, handed to Jev.
+| ID | Source language | Embedding | BM25 | Hybrid | Gold in pool 10 | Gold in pool 20 | Jev rank of gold (score) |
+|---|---|---|---|---|---|---|---|
+| h-001 | EN table | miss | 4 | 14 | no | yes | 1 (0.50) |
+| h-002 | EN | miss | 1 | 20 | no | no | not in pool |
+| h-003 | EN | 2 | 2 | 2 | yes | yes | 1 (0.87) |
+| h-004 | EN | 2 | 6 | 2 | yes | yes | 1 (0.96) |
+| h-005 | EN table | 1 | 1 | 1 | yes | yes | 1 (0.98) |
+| h-006 | EN | 3 | 1 | 1 | yes | yes | 1 (0.94) |
+| h-007 | EN | 1 | 1 | 1 | yes | yes | 1 (0.95) |
+| h-008 | FR table | miss | 6 | 11 | no | yes | 1 (0.97) |
+| h-009 | FR table | 14 | miss | 28 | no | no | not in pool |
+| h-010 | FR | 4 | miss | 12 | no | yes | 1 (0.86) |
+| h-011 | FR | miss | miss | miss (>72) | no | no | not in pool |
+
+Gold in pool: 5/11 at 10, 8/11 at 20. Whenever the gold page is in the pool, Jev ranks it first (8 of 8). Jev cost for the 9 new questions: about $0.004.
+Observations (n is small, questions drafted by me, nothing tuned):
+- All 4 questions whose answer is on a French page, asked in English (h-008..h-011), do worse than the 5 English-page ones: embedding ranks 4 / 14 / miss / miss, and BM25 cannot cross languages (h-009, h-010, h-011 miss). Hypothesis, not tested: a cross-language effect. Untested: the same questions in French.
+- RRF buried a page that a single method had in its top 6 in 4 of 11 questions (h-001, h-002, h-008, h-010). Fusion looks like the weak link again, on questions I had not seen before for h-008 and h-010.
+- h-009 and h-011 are in no pool at all.
+Not done: union merge, French rewrites, a human check of the questions (rows are still `synthetic-draft`).
