@@ -111,3 +111,8 @@ Weak evidence, three reasons: I made the prediction after seeing the per-method 
 h-001 and h-002 were the very questions that motivated the idea; the set is 11 questions I drafted.
 NOT yet checked: regression over the original 38 questions (the earlier band said a merge must not lose pages the embeddings already found).
 Until that is run, nothing here says union is better than the embedding pool in general.
+
+### Step 1b: 38-question regression check, condition written before the run
+Pass = union loses no gold page that the embedding pool already had in the first 10 chunks (N=10; N=20 reported too).
+Any loss is named by id and counts as a regression. Passing means "did not break anything", not "is better".
+Run: `python3 experiments/recall/regress.py` (no Jev calls, no bge, one embedder load).
