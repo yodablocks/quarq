@@ -102,6 +102,10 @@ def main() -> None:
     ap.add_argument("--pool", type=int, default=10, help="chunks handed to Jev (default 10, max 20)")
     ap.add_argument("--no-jev", action="store_true", help="skip the cloud call (free)")
     ap.add_argument("--save", metavar="ID", help="append this question to hard_v1.jsonl")
+    ap.add_argument("--provenance", default="hand-written",
+                    help="provenance stored with --save (default hand-written; "
+                         "e.g. synthetic-draft, synthetic-draft+human-accept)")
+    ap.add_argument("--note", default="", help="note stored with --save")
     args = ap.parse_args()
     if args.id:
         question, gold = load_saved(args.id)
@@ -150,8 +154,8 @@ def main() -> None:
     if args.save:
         if HARD.exists() and any(json.loads(l)["id"] == args.save for l in HARD.read_text().splitlines()):
             sys.exit(f"id {args.save!r} already in {HARD.name}")
-        row = {"id": args.save, "question": question, "doc_type": None, "provenance": "hand-written",
-               "gold": [{"source": s, "page": p} for s, p in sorted(gold)], "note": ""}
+        row = {"id": args.save, "question": question, "doc_type": None, "provenance": args.provenance,
+               "gold": [{"source": s, "page": p} for s, p in sorted(gold)], "note": args.note}
         with HARD.open("a") as fh:
             fh.write(json.dumps(row, ensure_ascii=False) + "\n")
         print(f"\nsaved {args.save} to {HARD.name}")
