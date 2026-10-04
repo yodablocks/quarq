@@ -162,3 +162,9 @@ Supported: French wording improves the embedding rank where the page is prose (h
 Not supported: h-012 (the B7 table) is still missed by the embedding in French, so for table rows the embedding itself, not the language, is the problem; BM25 rescues it.
 Confound unchanged: the French wording also shares the page's own vocabulary, so this does not separate "language" from "word overlap".
 Practical reading: a French-speaking analyst asking in French gets better retrieval than the English-question tests suggested; quarq's gold set is entirely English, so it understates French-user quality and overstates English-on-French-page quality.
+
+## Update 2026-10-04: hard set reviewed
+Marc checked every answer and page of h-003..h-011 against the PDFs (the PDF viewer's title-bar page index, not the printed page number, which differs by one in some of these files).
+The four French rewrites (h-012..h-015) share those answers and pages and were checked through their English originals; their French wording was not separately reviewed.
+All 15 rows now carry `synthetic-draft+human-accept`, so `quarq eval --dataset experiments/recall/hard_v1.jsonl` accepts the file (not run here: it would load two models on the GPU).
+The earlier "not human-reviewed" caveats in the results above describe the state at the time. The LLM still chose the questions, so selection bias from drafting remains.
