@@ -126,3 +126,8 @@ Gold page in the first N chunks, over the 38 original questions:
 Condition met: the union loses nothing the embedding pool had. The RRF rows reproduce the earlier run (35 at N=10 losing b2-013, 37 at N=20), a sanity check on the harness.
 Caveats: the two gains are the very questions that motivated the merge, so they are in-sample; the out-of-sample evidence is h-008 and h-010 on the hard set.
 Pool membership is not Hit@1. At N=10 the union gives the re-ranker about 5 embedding chunks plus 5 BM25 chunks instead of 10 embedding chunks, which could change the final order. Not measured yet.
+
+### Step 1c: union + Jev end to end on the 38 questions, bands written before the run
+Baseline: Jev v1 over the embedding pool of 10 = 36/38 Hit@1 (misses b1-020, b2-011).
+Pass: union pool 10 + Jev v1 scores at least 36. Improvement: 37 or more. Below 36: regression, questions named.
+Run: `python3 experiments/recall/e2e_union.py 10` (embeddings come from the cache, Jev is a cloud call).

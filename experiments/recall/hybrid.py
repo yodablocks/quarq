@@ -93,18 +93,22 @@ class Candidates:
     def hybrid(self, q: str) -> list[RetrievedChunk]:
         return fuse([self.embedding(q), self.keyword(q)])
 
+    def union(self, q: str) -> list[RetrievedChunk]:
+        return interleave([self.embedding(q), self.keyword(q)])
+
 
 class HybridRetriever:
     """Retriever.retrieve's signature, hybrid pool, production steps afterwards."""
 
     def __init__(self, cands: Candidates, cfg: QuarqConfig, reranker: RerankerLike,
-                 pool_n: int) -> None:
+                 pool_n: int, merge: str = "hybrid") -> None:
         self.cands, self.cfg, self.reranker, self.pool_n = cands, cfg, reranker, pool_n
+        self.merge = merge
 
     def retrieve(self, query: str, k: int | None = None, doc_type: str | None = None,
                  min_similarity: float | None = None) -> list[RetrievedChunk]:
         k = k if k is not None else self.cfg.rag.top_k
-        pool = self.cands.hybrid(query)
+        pool = getattr(self.cands, self.merge)(query)
         head = self.reranker.rerank(query, pool[: self.pool_n])
         out = head + pool[self.pool_n:]
         if self.cfg.rag.date_aware:
