@@ -142,3 +142,8 @@ Caveats, in order of weight:
 - The hard-set questions that were not used to design the merge (h-008, h-010) both succeed, which is the better evidence, but n is 2.
 - The cache holds one Jev answer per (question, passage) pair: run-to-run variation of Jev is not measured.
 - The two hard questions that remain (h-009, h-011) are in no pool: the union does not fix cross-language misses.
+
+## Step 2: French rewrites of h-008..h-011 (saved as h-012..h-015, same gold pages)
+Prediction written before the run: if the cause is cross-language, at least 3 of the 4 French versions have the gold page in the union pool of 10,
+and h-009 and h-011 move into the pool. If h-013 and h-015 stay out of the pool, the cause is something else (chunking, tables, ranking).
+Confound I cannot remove: a faithful French translation uses the page's own words, so a gain means "French helps", not "language alone".
