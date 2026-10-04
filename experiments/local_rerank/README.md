@@ -40,3 +40,18 @@ On the hard set bge misses h-001, h-002, h-009, h-011 and h-015 at rank 1; h-009
 Gap to Jev at Hit@1: 5 questions on the 38, 2 on the hard set. bge was about 2.4 times slower per query on this machine (local GPU against a network call).
 Reading, not tested: the Jev question asks whether the passage states the answer; bge scores topical relevance. The prompt wording, not only the model, may carry the difference.
 Caveats: one run, same small sets, 3 s pauses between questions (latency excludes them).
+
+## Step 3b: a local LLM as a pointwise judge (gemma-4-12b-qat on the LAN LM Studio host)
+Question: can a local model, asked whether the passage states the answer, re-rank as well as Jev, and does the wording matter as much as the model?
+Score: P(yes) from the first token's log-probabilities (yes/no variants, normalized). Same union pool of 10, same two sets (38 gold, 15 hard).
+Two wordings, same model, committed in `llm_judge.py`:
+- **A** "does the passage state the answer" (the Jev wording).
+- **B** "is the passage relevant to the question" (topical, what bge is trained for).
+Requests are sequential, responses cached on disk. The question and passage go to the LM Studio host on the LAN only.
+
+Bands, written before the run. References on the 38: bge 33, Jev 38.
+- **Matches bge**: wording A scores 31 to 35. **Closes the gap**: 36 or more. **Worse than bge**: 30 or fewer.
+- **Wording matters**: A and B differ by 3 or more questions on the 38. Otherwise the wording is not carrying the result at this sample size.
+- A run with more than 5% of requests returning no yes/no signal is void (reported as such).
+Timing first: the first 10 requests are timed alone; if a request takes over 3 s on average the full run (about 530 per wording) is not started without asking.
+Run: `python3 experiments/local_rerank/llm_judge.py --wording A --limit 10` (timing), then without `--limit`.
