@@ -23,6 +23,9 @@ import time  # noqa: E402
 from dataclasses import replace  # noqa: E402
 from pathlib import Path  # noqa: E402
 
+import re  # noqa: E402
+import subprocess  # noqa: E402
+
 import requests  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -49,8 +52,16 @@ WORDINGS = {
 }
 
 
+def speed_limit() -> int:
+    """macOS CPU speed limit from `pmset -g therm` (100 = not throttled). A late tripwire, not a thermometer."""
+    out = subprocess.run(["pmset", "-g", "therm"], capture_output=True, text=True).stdout
+    m = re.search(r"CPU_Speed_Limit\s*=\s*(\d+)", out)
+    return int(m.group(1)) if m else 100
+
+
 class Judge:
-    def __init__(self, url: str, model: str, wording: str) -> None:
+    def __init__(self, url: str, model: str, wording: str, burst: int = 0, cool: float = 0.0) -> None:
+        self.burst, self.cool = burst, cool
         self.url, self.model, self.wording = url.rstrip("/"), model, wording
         CACHE.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(CACHE)
@@ -85,7 +96,19 @@ class Judge:
         self.db.commit()
         self.fresh += 1
         self.ms.append(ms)
+        self._rest()
         return p
+
+    def _rest(self) -> None:
+        """Duty cycle: after every `burst` fresh requests, sleep `cool` seconds; stop if the Mac reports throttling."""
+        if speed_limit() < 100:
+            print("macOS reports CPU throttling: pausing 180 s", flush=True)
+            time.sleep(180)
+            if speed_limit() < 100:
+                raise SystemExit("still throttled after 180 s: stopped. Re-run later; finished requests are cached.")
+        if self.burst and self.fresh % self.burst == 0:
+            print(f"  {self.fresh} requests done, cooling {self.cool:.0f} s", flush=True)
+            time.sleep(self.cool)
 
 
 class JudgeReranker:
@@ -107,12 +130,14 @@ def main() -> None:
     ap.add_argument("--url", help="LM Studio base url, default quarq config lmstudio.url")
     ap.add_argument("--sets", default="gold38,hard15")
     ap.add_argument("--limit", type=int, help="stop after this many fresh requests (timing test)")
+    ap.add_argument("--burst", type=int, default=0, help="fresh requests per burst before a cooldown")
+    ap.add_argument("--cool", type=float, default=0.0, help="seconds to sleep after each burst")
     args = ap.parse_args()
 
     cfg = load_config()
     store = VectorStore(cfg)
     cands = Candidates(store, CachedEmbedder(cfg), probe.bm25_index(store))
-    judge = Judge(args.url or cfg.lmstudio.url, args.model, args.wording)
+    judge = Judge(args.url or cfg.lmstudio.url, args.model, args.wording, args.burst, args.cool)
     judge.limit = args.limit
     reranker = JudgeReranker(judge)
     paths = {"gold38": ROOT / "quarq" / "eval" / "datasets" / "quarq_gold_v1.jsonl",

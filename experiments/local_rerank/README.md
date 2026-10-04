@@ -55,3 +55,10 @@ Bands, written before the run. References on the 38: bge 33, Jev 38.
 - A run with more than 5% of requests returning no yes/no signal is void (reported as such).
 Timing first: the first 10 requests are timed alone; if a request takes over 3 s on average the full run (about 530 per wording) is not started without asking.
 Run: `python3 experiments/local_rerank/llm_judge.py --wording A --limit 10` (timing), then without `--limit`.
+
+### Heat (found after the timing test)
+The LM Studio host (192.168.1.107) is the same Mac that runs everything else, so the 12B model's inference heats this machine.
+The timing test measured 6.4 s per request (max 7.7 s) with the model running continuously.
+`llm_judge.py` therefore takes `--burst N --cool S`: after every N fresh requests it sleeps S seconds. Responses are cached, so any stop resumes cleanly.
+It also reads `pmset -g therm`; if macOS reports a CPU speed limit below 100 it pauses 180 s and stops if still throttled. That is a late tripwire
+(it fires once throttling has begun), not a temperature reading, so the duty cycle is the real protection. Temperature is not measured here.
