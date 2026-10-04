@@ -32,11 +32,12 @@ class JevClient:
         self.fresh_calls = 0
         self.cache_hits = 0
 
-    def ask(self, state: Any, questions: dict[str, Any]) -> dict[str, Any]:
+    def ask(self, state: Any, questions: dict[str, Any], fresh: bool = False) -> dict[str, Any]:
+        """fresh=True skips the cache read and does not write: a new, independent sample."""
         body = {"state": state, "model": MODEL, "questions": questions}
         key = hashlib.sha256(json.dumps(body, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
         with self._lock:
-            row = self._db.execute("SELECT response FROM r WHERE key=?", (key,)).fetchone()
+            row = None if fresh else self._db.execute("SELECT response FROM r WHERE key=?", (key,)).fetchone()
             if row:
                 self.cache_hits += 1
                 return json.loads(row[0])
@@ -48,9 +49,10 @@ class JevClient:
             if resp.status_code == 200:
                 payload = resp.json()
                 with self._lock:
-                    self._db.execute("INSERT OR REPLACE INTO r VALUES (?,?,?)",
-                                     (key, json.dumps(payload, ensure_ascii=False), ms))
-                    self._db.commit()
+                    if not fresh:
+                        self._db.execute("INSERT OR REPLACE INTO r VALUES (?,?,?)",
+                                         (key, json.dumps(payload, ensure_ascii=False), ms))
+                        self._db.commit()
                     self.latencies_ms.append(ms)
                     self.fresh_calls += 1
                     self.input_tokens += payload.get("usage", {}).get("input_tokens", 0)

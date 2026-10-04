@@ -1,0 +1,30 @@
+{
+  "passes": 3,
+  "pairs": 490,
+  "pairs_identical": 281,
+  "max_spread": 0.25,
+  "mean_spread": 0.0101,
+  "pairs_spread_over_0.05": 24,
+  "pairs_spread_over_0.2": 1,
+  "hit1_per_pass": {
+    "gold38": [
+      38,
+      38,
+      37
+    ],
+    "hard15": [
+      12,
+      12,
+      12
+    ]
+  },
+  "questions_top1_changed": {
+    "gold38": [
+      "b1-005",
+      "y-08"
+    ],
+    "hard15": []
+  },
+  "input_tokens": 996628,
+  "cost_usd": 0.0419
+}

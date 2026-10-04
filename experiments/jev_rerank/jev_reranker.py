@@ -56,16 +56,20 @@ QUESTIONS = {
 class JevReranker:
     """Same interface as quarq.rag.reranker.Reranker."""
 
-    def __init__(self, client: JevClient, workers: int = 12, variant: str = "v1") -> None:
+    def __init__(self, client: JevClient, workers: int = 12, variant: str = "v1", fresh: bool = False) -> None:
         self.client = client
+        self.fresh = fresh
+        self.record: list[tuple[str, str, float]] = []  # (question, chunk_id, score)
         self.questions = QUESTIONS[variant]
         self.workers = workers
         self.ties_at_top = 0
         self.calls_wall_ms: list[float] = []
 
     def _score(self, query: str, chunk: RetrievedChunk) -> float:
-        out = self.client.ask({"question": query, "passage": chunk.content}, self.questions)
-        return float(out["answers"]["relevant"]["noul"])
+        out = self.client.ask({"question": query, "passage": chunk.content}, self.questions, fresh=self.fresh)
+        score = float(out["answers"]["relevant"]["noul"])
+        self.record.append((query, str(chunk.metadata.get("chunk_id")), score))
+        return score
 
     def rerank(self, query: str, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
         if not chunks:
