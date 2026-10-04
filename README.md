@@ -236,6 +236,18 @@ quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it h
 - **Not on PyPI.** Install from source.
 - **Lint is advisory.** CI reports ruff findings but doesn't fail on them yet, because the repo has existing lint debt.
 
+## Experiments
+
+`experiments/` holds retrieval experiments that are not part of the package and change no default. Each one has its own README with the method, the pass conditions (written before each run), the raw results and the caveats. Results below use the 38-question gold set unless stated.
+
+| Experiment | Question | Result |
+|---|---|---|
+| [`jev_rerank`](experiments/jev_rerank/README.md) | Does TypeSafe's Jev re-rank as well as the local cross-encoder? | Hit@1 36/38 against 33/38, the same across three wordings of the question. Jev is a cloud API: the question and passage text leave your machine. |
+| [`recall`](experiments/recall/README.md) | Do BM25 candidates next to the embedding candidates put more answer pages in front of the re-ranker? | A round-robin union has the answer page in the first 10 chunks for 38/38 (embedding alone 36, reciprocal rank fusion 35). With Jev, Hit@1 is 38/38. Includes a one-question probe and a 15-question hard set. |
+| [`local_rerank`](experiments/local_rerank/README.md) | Does that better candidate pool also help the local cross-encoder? | No lift at Hit@1 (33/38), though Hit@5 rises from 36 to 38. The local path is about 5 questions behind Jev. |
+
+Treat these as leads, not measurements. The gold set is small (one question is 2.6 points), 28 of its 38 questions were drafted from the chunks being searched, the 15 hard questions were drafted by an LLM and have not been reviewed by a person, and a perfect score on a set that has been iterated on partly reflects saturation. The Retrieval quality numbers above describe the shipped defaults and are unchanged.
+
 ## Development
 
 ```bash
@@ -264,6 +276,7 @@ quarq/
   portfolio.py  metrics and TOML portfolio loader
   cli.py        the quarq command
 demo/           sample portfolio, Open WebUI tools and setup guide
+experiments/    retrieval experiments, not part of the package (see Experiments)
 tests/          offline test suite with mocked HTTP
 ```
 
