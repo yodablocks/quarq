@@ -57,3 +57,15 @@ and where I picked BM25 after looking at the misses. Why RRF pushed b2-013 out o
 Not run: embedding pool 20 + Jev (the pool numbers show it cannot beat 36, since the embedding pool holds the same 36 pages at N=10 and N=20),
 BM25 or fusion tuning, any depth other than 40.
 What this set cannot do: show a recall improvement. It has 2 failing questions, so there is almost nothing to fix and a lot of room to lose.
+
+## Probe: one hard question at a time
+`probe.py` checks a single question, so nothing runs the whole set unless asked. Light on the machine: thread count capped at 2,
+query embedding and BM25 index cached in `.cache/` (a repeat probe loads no model), Jev is a cloud call, bge is never loaded.
+```bash
+python3 experiments/recall/probe.py "question" --gold file.pdf:12 [--gold ...] [--pool 10|20] [--no-jev]
+python3 experiments/recall/probe.py --id h-001          # re-run a saved question
+python3 experiments/recall/probe.py "question" --gold file.pdf:12 --save h-001   # append to hard_v1.jsonl
+```
+Saved questions use provenance `hand-written`, so `quarq eval --dataset` accepts the file. Gold pages use the PDF viewer index.
+Checked on b1-020: embedding misses, BM25 ranks the gold page 4th, hybrid 14th, Jev ranks it first with a score of only 0.50
+(the next best is 0.08). The first run took about 14 s wall and 4.7 s of CPU; the corpus is 2,571 chunks.
