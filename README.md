@@ -248,6 +248,16 @@ quarq is **alpha**. [v0.1.0](CHANGELOG.md) is the first tagged release, and it h
 
 Treat these as leads, not measurements. The gold set is small (one question is 2.6 points), 28 of its 38 questions were drafted from the chunks being searched, the 15 hard questions were drafted by an LLM (a person checked every answer and page against the PDFs, but the LLM chose the questions), and a perfect score on a set that has been iterated on partly reflects saturation. The Retrieval quality numbers above describe the shipped defaults and are unchanged.
 
+### Open items
+
+Where to pick this up. None of these is started in the repo.
+
+1. **Scale test.** Everything above holds on the 2,571-chunk corpus. A test with more documents was begun outside this repo, using EU legal acts from the Publications Office's Cellar service (about 17,500 in-force regulations and directives, roughly 250,000 chunks in all), and stopped. Embedding with `multilingual-e5-large` ran at about 5 chunks per second on the Apple-GPU Mac used here, which overheats under sustained load, so only a step of about four times the current corpus is realistic on it. A real test needs other hardware or a cloud embedding service. The EU supervisory reports quarq indexes have no bulk API: only statistics do.
+2. **Local re-ranker.** The local cross-encoder trails Jev by about 5 questions on the 38. A local LLM as a judge was attempted and stopped before producing a result, so the idea that the wording of the question ("does the passage state the answer" against "is it relevant") matters as much as the model is untested.
+3. **Jev's variation.** Three passes over the same pairs moved the 38-question Hit@1 by up to one question. More passes would tighten that, and the other question wordings and the embedding pool were not re-run.
+4. **First-set questions.** 28 of the original 38 questions were drafted from the chunks being searched. They have not been replaced.
+5. **Cross-document answers.** Questions whose answer needs several documents, with a source for each step, were the starting idea and are not covered by any experiment.
+
 ## Development
 
 ```bash
