@@ -54,7 +54,6 @@ def main() -> None:
     store, embedder = VectorStore(cfg), Embedder(model_name=cfg.embedder.model)
     gold = load_gold(GOLD)
     n_chunks = store.count()
-    client = JevClient()
     out: dict = {"generated_at": datetime.now(UTC).isoformat(), "n_questions": len(gold),
                  "corpus_chunks": n_chunks, "rerank_top_n": cfg.rag.rerank_top_n, "arms": {}}
 
@@ -63,7 +62,8 @@ def main() -> None:
             reranker = None
         elif arm == "bge":
             reranker = Reranker(cfg.rag.reranker_model, max_length=cfg.rag.rerank_max_length)
-        else:  # "jev" or "jev:v2"
+        else:  # "jev" or "jev:v2"; a new client per arm, so its counters cover this arm only
+            client = JevClient()
             reranker = JevReranker(client, variant=arm.partition(":")[2] or "v1")
         timed = Timed(Retriever(store, embedder, cfg, reranker=reranker))
         res = run_eval(timed, gold, cfg, dataset_name="quarq_gold_v1", corpus_chunk_count=n_chunks)
