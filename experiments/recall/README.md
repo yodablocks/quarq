@@ -168,3 +168,4 @@ Marc checked every answer and page of h-003..h-011 against the PDFs (the PDF vie
 The four French rewrites (h-012..h-015) share those answers and pages and were checked through their English originals; their French wording was not separately reviewed.
 All 15 rows now carry `synthetic-draft+human-accept`, so `quarq eval --dataset experiments/recall/hard_v1.jsonl` accepts the file (not run here: it would load two models on the GPU).
 The earlier "not human-reviewed" caveats in the results above describe the state at the time. The LLM still chose the questions, so selection bias from drafting remains.
+Also: h-001 and h-002 are the gold questions b1-020 and b2-011, the two that motivated the union merge. Hard-set results for the union (gold page in the pool for 9 of 11; ranked first by Jev for 12 of 15 including the French rewrites) therefore include 2 in-sample questions; the questions not used to design the merge are h-003..h-015.
