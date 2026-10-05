@@ -5,7 +5,10 @@ Jev (a Noul per question + passage pair) re-rank as well as the local `bge-reran
 cross-encoder, and at what latency and cost?
 
 Part of note 001 in the from_Q2P repo. Throwaway code: it lives outside the `quarq` package on
-purpose, and `jev-latest` is named here because the repo rule bans model names inside `rag/` and `llm/`.
+purpose. It names the model `jev-latest` in `client.py`, which **breaks** the repo rule in CLAUDE.md:
+"No hardcoded model names outside config.py and llm/ backends". An earlier version of this line stated the rule
+backwards. The same applies to `google/gemma-4-12b-qat` in `experiments/local_rerank/llm_judge.py`. The rule has no
+exemption for `experiments/`; whether to add one or move the names into config is an open decision for the owner.
 
 ## Arms (same 38 questions, same corpus, same date-aware step)
 1. `embedding`: no re-ranker.
@@ -64,6 +67,7 @@ Run: `python3 experiments/jev_rerank/run.py --arms jev:v2,jev:v3`
 Band: **robust win** (all three at least 35/38, spread 0). Per-question outcomes were identical across wordings.
 The two misses are first-stage failures: for both, the gold page is not in the embedding top 40 (checked directly), so no re-ranker could reach it. b1-020 is an exact-date factsheet question about BNP's index weight; b2-011 is an ECB FSR page.
 Latency again: call p50 about 520 ms, p95 about 820 ms; each wording about $0.014.
+Correction (code review, 2026-10-05): `run.py` shared one Jev client across arms, so in `results/run-20261004T033321.json` the `jev:v3` fields `fresh_calls`, `cost_usd`, `call_ms_p50` and `call_ms_p95` are cumulative over v2 and v3 (760 calls, $0.0278). The per-wording figures above (about 380 calls and $0.014 each) are the right ones. The file is left as recorded; `run.py` now creates a client per arm.
 Still not tested: rerunning one fixed wording (cache returns the same answers), French-only questions, harder or larger gold sets, local alternatives.
 Identical results across three wordings is itself a mild warning: this gold set may be too easy to separate them (28 of 38 questions were drafted from the chunks themselves).
 
@@ -83,7 +87,7 @@ Jev is **not deterministic**. Same pairs, same wording, three passes (one from t
 - 281 pairs (57%) returned identical scores in all three passes; mean spread 0.010; 24 pairs (5%) spread by more than 0.05; one pair by 0.25.
 - Hit@1 per pass: gold38 **38, 38, 37**; hard15 **12, 12, 12**.
 - Two gold questions (b1-005, y-08) changed their top-1 page in at least one pass; none of the hard questions did. In the third pass one of those lost the gold page at rank 1.
-- Cost of the two fresh passes: 1,060 calls, 996,628 input tokens in total across the run, $0.042.
+- Cost of the two fresh passes: 1,060 calls (530 per pass, as printed by the run; `repeat.json` does not store the call count), 996,628 input tokens in total, $0.042.
 
 Against the bands written first: not **Stable** (Hit@1 differs between passes) and not **Unstable** (the gap is 1 question, and 2 questions changed top-1); the bands left a gap
 for "Hit@1 differs by exactly 1", which is what happened. Plain reading: **mild run-to-run variation**; the 38/38 should be read as 37 to 38.
