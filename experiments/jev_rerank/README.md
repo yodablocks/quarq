@@ -5,7 +5,10 @@ Jev (a Noul per question + passage pair) re-rank as well as the local `bge-reran
 cross-encoder, and at what latency and cost?
 
 Part of note 001 in the from_Q2P repo. Throwaway code: it lives outside the `quarq` package on
-purpose, and `jev-latest` is named here because the repo rule bans model names inside `rag/` and `llm/`.
+purpose. It names the model `jev-latest` in `client.py`, which **breaks** the repo rule in CLAUDE.md:
+"No hardcoded model names outside config.py and llm/ backends". An earlier version of this line stated the rule
+backwards. The same applies to `google/gemma-4-12b-qat` in `experiments/local_rerank/llm_judge.py`. The rule has no
+exemption for `experiments/`; whether to add one or move the names into config is an open decision for the owner.
 
 ## Arms (same 38 questions, same corpus, same date-aware step)
 1. `embedding`: no re-ranker.
