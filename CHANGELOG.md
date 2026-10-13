@@ -5,6 +5,44 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-10-13
+
+First release on PyPI with the real package: 0.0.1 to 0.0.4 were placeholders that claimed
+the name, and 0.1.0 was tagged but never uploaded. This release includes everything in 0.1.0
+below plus the changes listed here.
+
+### Added
+
+**Retrieval evaluation**
+- `quarq eval` scores the real retriever against a human-reviewed gold set: precision, recall,
+  hit rate and MRR, with rich, JSON and Markdown reports.
+- Gold set of 38 reviewed questions, including 10 that depend on the year asked about. Each row
+  carries its provenance, and refs missing from the corpus are rejected.
+- `quarq eval-gen` drafts new gold questions for a person to review; it never overwrites.
+- Every eval run compares the vector index with exact search, so index recall is measured.
+
+**RAG**
+- Cross-encoder re-ranking of the top candidates.
+- Questions that name an exact date favour documents covering that date.
+- Answers flag figures the model was not shown.
+- A corpus manifest records each document's period and dates (`quarq rag manifest`).
+- `quarq rag coverage` and `quarq rag dedupe`; PDF pages with no text layer are reported.
+
+### Changed
+- The collection is now `quarq_rag_v2`, created with explicit HNSW settings so retrieval is
+  exact. `quarq rag migrate` copies an existing `quarq_rag_v1` collection without re-embedding.
+- Search returns one chunk per page, so the top k results are distinct pages.
+
+### Fixed
+- Duplicate chunks are removed, and re-indexing no longer adds copies.
+- Secrets in the config are stored as `SecretStr` so they never print, and saving with an
+  environment override keeps the stored secret.
+- Eval input errors name the invalid field and fail with a clear message.
+
+### Packaging
+- Published to PyPI from a tagged GitHub Actions release, using trusted publishing.
+- The version is defined once, in `quarq/__init__.py`.
+
 ## [0.1.0] - 2026-09-22
 
 First tagged release. Everything below landed across phases 2 through 7.
@@ -85,6 +123,7 @@ First tagged release. Everything below landed across phases 2 through 7.
   by hand via `demo/smoke_test_tools.py`.
 - PDF report output requires the `full` extra (`pip install 'quarq[full]'`)
   for playwright.
-- Not published to PyPI; install from source.
+- Not published to PyPI; install from source (fixed in 0.2.0).
 
+[0.2.0]: https://github.com/yodablocks/quarq/releases/tag/v0.2.0
 [0.1.0]: https://github.com/yodablocks/quarq/releases/tag/v0.1.0

@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="quarq API",
     description="French institutional portfolio analytics API",
-    version="0.1.0",
+    version=__version__,
     lifespan=lifespan,
 )
 
