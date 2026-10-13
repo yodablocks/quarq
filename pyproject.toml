@@ -64,6 +64,10 @@ path = "quarq/__init__.py"
 [tool.hatch.build.targets.wheel]
 packages = ["quarq"]
 
+# Without this the sdist would carry experiments/, docs/, demo/ and assets/ as well.
+[tool.hatch.build.targets.sdist]
+include = ["quarq", "tests", "README.md", "CHANGELOG.md", "LICENSE", "pyproject.toml"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
