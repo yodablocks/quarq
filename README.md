@@ -11,7 +11,7 @@ quarq computes risk metrics for a CAC 40 portfolio, answers questions from ECB, 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-![quarq report for the demo CAC 40 portfolio: headline metrics and cumulative returns against the benchmark](assets/report-overview-2025-26.png)
+![quarq report for the demo CAC 40 portfolio: headline metrics and cumulative returns against the benchmark](https://raw.githubusercontent.com/yodablocks/quarq/master/assets/report-overview-2025-26.png)
 
 ---
 
@@ -77,7 +77,7 @@ weight = 0.40
 
 `quarq report` turns it into a self-contained HTML report. Alongside the metrics and return charts above, it shows how the holdings move together and how the weights break down by sleeve:
 
-![Correlation matrix of the seven holdings and a treemap of portfolio weights by sleeve](assets/report-allocation-2025-26.png)
+![Correlation matrix of the seven holdings and a treemap of portfolio weights by sleeve](https://raw.githubusercontent.com/yodablocks/quarq/master/assets/report-allocation-2025-26.png)
 
 The building blocks are also usable as a library:
 
